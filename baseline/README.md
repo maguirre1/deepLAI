@@ -1,0 +1,3 @@
+# Baseline model
+
+RFMix scripts.
