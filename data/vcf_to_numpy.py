@@ -7,6 +7,8 @@ _README_="""
 A script to convert genotypes from a vcf file to a compressed numpy (npz) 
 file. Probably worth revisiting variant filers from the VCF.
 
+Todo: make this use the `vcf` module.
+
 Author: Matthew Aguirre (magu[at]stanford[dot]edu)
 """
 
