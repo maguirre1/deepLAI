@@ -17,9 +17,9 @@ nv = int(2**20) # variants
 na = 3          # alleles
 nc = 4          # ancestries 
 bs = 4          # batch size
-ge = False      # use generator object
+ge = True       # use generator object
 nf = 8          # number of filters for segnet
-ne = 75         # number of epochs
+ne = 100        # number of epochs
 # todo: give this a command-line interface
 
 
@@ -96,12 +96,15 @@ if hvd.rank() == 0:
 ## Train model 
 print("training model...")
 
+es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=25)
 if ge: 
     params={'X':X, 'Y':Y, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':na}
     generator=DataGenerator(train_ix, **params)
-    history=model.fit_generator(generator=generator, validation_data=(X_dev, Y_dev), epochs=ne)
+    history=model.fit_generator(generator=generator, validation_data=(X_dev, Y_dev), 
+                                epochs=ne, callbacks=[es])
 else:
-    history=model.fit(X[train_ix,:nv,:na], Y[train_ix,:nv,1:], batch_size=bs, epochs=ne)
+    history=model.fit(X[train_ix,:nv,:na], Y[train_ix,:nv,1:], validation_data=(X_dev, Y_dev),
+                      batch_size=bs, epochs=ne, callbacks=[es])
 
 
 
