@@ -38,13 +38,16 @@ train_ix=[i for i,q in enumerate(train) if q in S]
 
 # additional (random) dev set samples -- first choose indexes
 n=100
-N=np.load(data_root+'simulated/dev_10gen.result.npz').shape[0]
-d_ix=np.random.choice(np.arange(N), size=n, replace=False)
+S=np.load(data_root+'simulated/label/dev_10gen.result.npz')['S']
+s=np.random.choice(S, size=n, replace=False)
 
 # then load and subset -- AMR is the first ancestry label, ignored for now
-dev_f=data_root+'/simulated/dev_10gen.query'
-X_dev=np.load(dev_f+'.query.ALL_X.npz')['G'][d_ix,:nv,:na]
-Y_dev=to_categorical(np.load(dev_f+'.result.npz')['L'][d_ix,:nv], dtype='bool')[:,:,1:]
+x_f=data_root+'simulated/numpy/dev_10gen.query.ALL_X.npz'
+y_f=data_root+'simulated/label/dev_10gen.result.npz'
+S_f=np.load(x_f)['S']
+X_dev=np.load(x_f)['G'][[np.where(S_f==(i))[0][0] for i in s],:nv,:na]
+S_f=np.load(y_f)['S']
+Y_dev=to_categorical(np.load(y_f)['L'][[np.where(S_f==(i))[0][0] for i in s],:nv], dtype='bool')[:,:,1:]
 print([X_dev.shape, Y_dev.shape])
 print("loaded data...")
 
