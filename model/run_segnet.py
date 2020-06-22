@@ -12,48 +12,52 @@ from generator import DataGenerator
 
 
 
-# fair warning, all the paths in this script are broken (16 June 2020 -- MA)
-
+## Set variant filtration criteria (just subsetting)
+nv = int(2**20) # variants
+na = 3          # alleles
+nc = 4          # ancestries 
+bs = 4          # batch size
+ge = False      # use generator object
+nf = 8          # number of filters for segnet
+ne = 75         # number of epochs
+# todo: give this a command-line interface
 
 
 ## Load data
-X = np.load('../unzipped/chm_21.genotypes.npy', mmap_mode='r')
-Y = np.load('../unzipped/chm_21.labels.npy', mmap_mode='r')
-S = np.load('../unzipped/chm_21.samples.npy')
+data_root='/home/magu/deepmix/data/ALL_DNA_dataset/'
+X = np.load(data_root+'unzipped/chm_21.genotypes.npy', mmap_mode='r')
+Y = np.load(data_root+'unzipped/chm_21.labels.npy', mmap_mode='r')
+S = np.load(data_root+'unzipped/chm_21.samples.npy')
 print([X.shape, Y.shape, X.shape])
 
 
 # get indexes of train set individuals
-train=np.loadtxt('chm21.train.txt', dtype=str)
+train=np.loadtxt(data_root+'chm21.train.txt', dtype=str)
 train_ix=[i for i,q in enumerate(train) if q in S]
 
 
-# additional (random) dev set samples
+# additional (random) dev set samples -- first choose indexes
 n=100
-d_ix=np.random.choice(np.arange(np.load('dev_10gen.result.npz').shape[0]), size=n, replace=False)
-X_dev=np.load('dev_10gen.query.ALL_X.npz')['G'][d_ix,:n_variants,:n_variant_classes_per_variant]
-# AMR is the first ancestry label, and there are none of them
-Y_dev=to_categorical(np.load('dev_10gen.result.npz')['L'][d_ix,:n_variants], dtype='bool')[:,:,1:]
+N=np.load(data_root+'simulated/dev_10gen.result.npz').shape[0]
+d_ix=np.random.choice(np.arange(N), size=n, replace=False)
+
+# then load and subset -- AMR is the first ancestry label, ignored for now
+dev_f=data_root+'/simulated/dev_10gen.query'
+X_dev=np.load(dev_f+'.query.ALL_X.npz')['G'][d_ix,:nv,:na]
+Y_dev=to_categorical(np.load(dev_f+'.result.npz')['L'][d_ix,:nv], dtype='bool')[:,:,1:]
 print([X_dev.shape, Y_dev.shape])
 print("loaded data...")
 
 
-## Additional variant filtration criteria (currently just subsetting)
-n_variants = 2**18
-n_variant_classes_per_variant = 3
-n_classes = 4
-
-
-
 
 ## Create model, declare optimizer
-model = segnet((n_variants, n_variant_classes_per_variant), n_classes)
-adam_optimizer_fn = optimizers.Adam(lr=1e-4)
+model = segnet(input_shape=(nv,na), n_classes=nc, n_filters=nf)
+adam = optimizers.Adam(lr=1e-4)
 
 
 # hvd adjustments -- here and below
-#adam_optimizer_fn = optimizers.Adam(lr=1e-4 * hvd.size())
-#adam_optimizer_fn = hvd.DistributedOptimizer(adam_optimizer_fn)
+#adam = optimizers.Adam(lr=1e-4 * hvd.size())
+#adam = hvd.DistributedOptimizer(adam)
 
 # do a parallel thing (not hvd)
 #strategy = tf.distribute.MirroredStrategy()
@@ -63,14 +67,13 @@ adam_optimizer_fn = optimizers.Adam(lr=1e-4)
 #with strategy.scope():
 #    # Everything that creates variables should be under the strategy scope.
 #    # In general this is only model construction & `compile()`.
-#    model = segnet((n_variants, n_variant_classes_per_variant))
-#    model.compile(optimizer=adam_optimizer_fn, loss='categorical_crossentropy', metrics=['accuracy']) 
+#    model = segnet((n_variants, n_alleles))
+#    model.compile(optimizer=adam, loss='categorical_crossentropy', metrics=['accuracy']) 
 
 
 
 ## Compile model and summarize
-model.compile(optimizer=adam_optimizer_fn, loss='categorical_crossentropy', metrics=['accuracy']) 
-
+model.compile(optimizer=adam, loss='categorical_crossentropy', metrics=['accuracy']) 
 print(model.summary())
 # print('Learning rate = ' + str(K.eval(model.optimizer.lr)))
 
@@ -89,22 +92,13 @@ if hvd.rank() == 0:
 
 ## Train model 
 print("training model...")
-params = {'X': X, 'Y': Y, 
-          'dim': n_variants,
-          'batch_size': 128,
-          'n_classes': n_classes,
-          'n_variant_classes_per_variant': n_variant_classes_per_variant,
-          'shuffle': True}
 
-# (optional) do this with a generator object (generator.py)
-#training_generator = DataGenerator(train_ix, **params)
-#history = model.fit_generator(generator = training_generator, validation_data = (X_dev, Y_dev), use_multiprocessing=True, epochs=50)
-#history = model.fit_generator(generator = training_generator, use_multiprocessing=True, epochs=50)
-
-
-# do it
-history=model.fit(X[train_ix,:n_variants,:n_variant_classes_per_variant], 
-                  Y[train_ix,:n_variants,1:], batch_size=16, epochs=50, use_multiprocessing=True)
+if ge: 
+    params={'X':X, 'Y':Y, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':na}
+    generator=DataGenerator(train_ix, **params)
+    history=model.fit_generator(generator=generator, validation_data=(X_dev, Y_dev), epochs=ne)
+else:
+    history=model.fit(X[train_ix,:nv,:na], Y[train_ix,:nv,1:], batch_size=bs, epochs=ne)
 
 
 
@@ -114,27 +108,30 @@ print("saved weights!")
 
 
 
+## Plot loss during training -- with final devset accuracy
+_, dev_acc = model.evaluate(X_dev, Y_dev, verbose=0)
+
+# 1.1) plot loss during training
+import matplotlib.pyplot as plt
+plt.figure(1, (9,9))
+plt.subplot(211)
+plt.title('Loss during training')
+plt.plot(history.history['loss'], label='train set')
+plt.plot(history.history['val_loss'], label='dev set')
+plt.legend()
+
+# 1.2) plot accuracy during training
+plt.subplot(212)
+plt.title('Accuracy')
+plt.plot(history.history['accuracy'], label='train set')
+plt.plot(history.history['val_accuracy'], label='dev set')
+plt.legend()
+plt.savefig('acc_during_training.png')
+
+
 
 ## Evaluate model -- not now tho
 comment="""
-# 1) create loss and accuracy plots
-_, dev_acc = model.evaluate(X_dev, Y_dev, verbose=0)
-# 1.1) plot loss during training
-pyplot.figure(1, (9,9))
-pyplot.subplot(211)
-pyplot.title('Loss')
-pyplot.plot(history.history['loss'], label='train')
-# pyplot.plot(history.history['val_loss'], label='test')
-pyplot.legend()
-# 1.2) plot accuracy during training
-pyplot.subplot(212)
-pyplot.title('Accuracy')
-pyplot.plot(history.history['accuracy'], label='train')
-# pyplot.plot(history.history['val_accuracy'], label='test')
-pyplot.legend()
-pyplot.savefig('acc_during_training.png')
-
-
 # print out confusion matrix of predicted classifications
 y_pred_dev = model.predict(X_dev, verbose=1)
 y_pred_dev_flattened = np.argmax(y_pred_test, axis=-1).flatten()

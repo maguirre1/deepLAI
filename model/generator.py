@@ -5,19 +5,20 @@ from keras.utils import to_categorical
 
 class DataGenerator(keras.utils.Sequence):
     'Generates data for Keras'
-    def __init__(self, train_ix, batch_size, dim, n_variant_classes_per_variant,
-                 n_classes, X, Y, shuffle = True):
+    def __init__(self, train_ix, batch_size, dim, n_alleles, n_classes, X, Y, 
+                 shuffle=True, admix=False):
         'Initialization'
         self.dim = dim
         self.batch_size = batch_size
         self.list_IDs = np.array(train_ix, dtype=int)
         if shuffle:
             np.random.shuffle(self.list_IDs)
-        self.n_variant_classes_per_variant = n_variant_classes_per_variant
+        self.n_alleles = n_alleles
         self.n_classes = n_classes
         self.shuffle = shuffle
         self.X = X
         self.Y = Y
+        self.admix = admix
         self.indexes = np.arange(self.list_IDs.shape[0])
         self.on_epoch_end()
 
@@ -33,7 +34,6 @@ class DataGenerator(keras.utils.Sequence):
         list_IDs_temp = np.array([self.list_IDs[k] for k in indexes])
         # Generate data
         X, y = self.__data_generation(list_IDs_temp)
-
         return X, y
 
     def on_epoch_end(self):
@@ -45,10 +45,13 @@ class DataGenerator(keras.utils.Sequence):
     def __data_generation(self, list_IDs_temp):
         'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
         # Initialization
-        X_sm = self.X[list_IDs_temp, :self.dim, :self.n_variant_classes_per_variant] 
+        X_sm = self.X[list_IDs_temp, :self.dim, :self.n_alleles] 
         y_sm = self.Y[list_IDs_temp, :self.dim, 1:] 
-
-        return naive_admixing(X_sm, y_sm)
+        
+        if self.admix:
+            return naive_admixing(X_sm, y_sm)
+        else:
+            return X_sm, y_sm
 
 
 def naive_admixing(X_data, Y_data):
