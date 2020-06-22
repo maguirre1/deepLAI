@@ -32,9 +32,7 @@ class DataGenerator(keras.utils.Sequence):
         indexes = np.arange(index*self.batch_size, (index+1)*self.batch_size)
         # Find list of IDs
         list_IDs_temp = np.array([self.list_IDs[k] for k in indexes])
-        # Generate data
-        X, y = self.__data_generation(list_IDs_temp)
-        return X, y
+        return self.__data_generation(list_IDs_temp)
 
     def on_epoch_end(self):
         'Updates indexes after each epoch'
@@ -43,11 +41,10 @@ class DataGenerator(keras.utils.Sequence):
             np.random.shuffle(self.indexes)
 
     def __data_generation(self, list_IDs_temp):
-        'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
-        # Initialization
+        'Generates data containing batch_size samples' 
+        # X : (n_samples, *dim, n_channels)
         X_sm = self.X[list_IDs_temp, :self.dim, :self.n_alleles] 
-        y_sm = self.Y[list_IDs_temp, :self.dim, 1:] 
-        
+        y_sm = self.Y[list_IDs_temp, :self.dim, 1:]         
         if self.admix:
             return naive_admixing(X_sm, y_sm)
         else:
@@ -70,7 +67,7 @@ def naive_admixing(X_data, Y_data):
             new_Y.append(list(Y_data[ind,:]))
         # sample breakpoints uniformly
         breaks=np.sort(X_data.shape[1] * ss.beta.rvs(a=1, b=1, size=j)).astype(int)
-        # pick founders uniformly at random without replacement and stitch their labels together
+        # pick founders uniformly at random and stitch their labels together
         founds=np.random.choice(np.arange(X_data.shape[0]), size=j+1, replace=True)
         # assemble genome and labels
         new_x,new_y = [],[]
