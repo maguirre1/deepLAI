@@ -1,13 +1,12 @@
 #!/bin/python
 import sys
-import gzip
+import gzip,bgzip
 import numpy as np
 
 _README_="""
 A script to convert genotypes from a vcf file to a compressed numpy (npz) 
-file. Probably worth revisiting variant filers from the VCF.
-
-Todo: make this use the `vcf` module.
+file. Currently takes all variants in the file, regardless of filtration 
+status (might be worth revisiting). 
 
 Author: Matthew Aguirre (magu[at]stanford[dot]edu)
 """
@@ -20,13 +19,19 @@ else:
     print("usage: python read_vcf.py input.vcf output_prefix")
     sys.exit(4)
 
-# this is just a magic number -- max number of alt alleles
-k=7
+# this is just a magic number -- max number of alleles (incl. ref)
+k=2
 
 # helper
 def easy_open(f, mode):
     if f[-2:]=='gz':
+        #try:
+            #print("shit")
+            #q=gzip.open(f, mode).readline()
+            #print("fuck")
         return gzip.open(f, mode)
+        #except SyntaxError:
+        #    return gzip.open(f, mode+'b')
     else:
         return open(f, mode)
 
