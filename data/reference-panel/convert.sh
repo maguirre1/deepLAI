@@ -7,7 +7,8 @@
 
 
 # start with this file and load this software
-in_vcf="/oak/stanford/groups/mrivas/public_data/ref_1kg_hgdp_sgdp/beagle_1kg_hgdp_sgdp_ref_panel_pure.vcf.gz"
+in_vcf="/scratch/users/magu/deepmix/data/vcf/expanded_ref_panel.vcf.gz"
+# in_vcf="/oak/stanford/groups/mrivas/public_data/ref_1kg_hgdp_sgdp/beagle_1kg_hgdp_sgdp_ref_panel_pure.vcf.gz"
 ml load biology; ml load bcftools; ml load htslib # bcftools, bgzip, tabix
 
 
@@ -26,4 +27,4 @@ fi
 # now convert to numpy
 npz="$SCRATCH/deepmix/data/panel_chr${chm}"
 echo $npz
-python vcf_to_numpy.py $vcf2 $npz
+python3 vcf_to_numpy.py $vcf2 $npz
