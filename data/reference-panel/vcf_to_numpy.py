@@ -25,13 +25,7 @@ k=2
 # helper
 def easy_open(f, mode):
     if f[-2:]=='gz':
-        #try:
-            #print("shit")
-            #q=gzip.open(f, mode).readline()
-            #print("fuck")
         return gzip.open(f, mode)
-        #except SyntaxError:
-        #    return gzip.open(f, mode+'b')
     else:
         return open(f, mode)
 

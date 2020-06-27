@@ -20,7 +20,8 @@ chm=${SLURM_ARRAY_TASK_ID:=20}
 vcf2="$SCRATCH/deepmix/data/vcf/panel_chr${chm}.vcf.gz"
 echo $vcf2
 if [ ! -f $vcf2 ]; then # in case you have to rerun
-	bcftools view -r "chr${chm}" $in_vcf | bgzip -c > $vcf2
+	# if you get errors, check if it's chrN or just N
+	bcftools view -r "${chm}" $in_vcf | bgzip -c > $vcf2
 	tabix $vcf2
 fi
 
