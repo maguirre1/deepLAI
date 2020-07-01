@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -J convert
 #SBATCH --mem=32000
-#SBATCH -t 3:00:00
+#SBATCH -t 5:00:00
 #SBATCH -o logs/convert.%A_%a.out
 #SBATCH --array=1-22
 
