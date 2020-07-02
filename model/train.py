@@ -13,48 +13,50 @@ from generator import DataGenerator
 
 
 ## Set variant filtration criteria (just subsetting)
-nv = int(2**20) # variants
-na = 3          # alleles
-nc = 4          # ancestries 
-bs = 4          # batch size
+nv = int(2**19) # variants
+na = 2          # alleles
+nc = 7          # ancestries 
+bs = 32         # batch size
 ge = True       # use generator object
-nf = 8          # number of filters for segnet
+nf = 16         # number of filters for segnet
+fs = 8          # segnet filter size 
 ne = 100        # number of epochs
 # todo: give this a command-line interface
 
 
 ## Load data
-data_root='/home/magu/deepmix/data/ALL_DNA_dataset/'
-X = np.load(data_root+'unzipped/chm_21.genotypes.npy', mmap_mode='r')
-Y = np.load(data_root+'unzipped/chm_21.labels.npy', mmap_mode='r')
-S = np.load(data_root+'unzipped/chm_21.samples.npy')
-print([X.shape, Y.shape, X.shape])
+data_root='/home/magu/deepmix/data/reference_panel/'
+X = np.load(data_root+'unzipped/panel_chr20.G.npy', mmap_mode='r')
+X = np.hstack([X, np.zeros((X.shape[0], nv-X.shape[1], X.shape[2]), dtype=bool)])
+Y = np.load(data_root+'unzipped/panel_chr20.L.npy', mmap_mode='r')
+Y = np.hstack([Y, np.zeros((Y.shape[0], nv-Y.shape[1], Y.shape[2]), dtype=bool)])
+S = np.load(data_root+'unzipped/panel_chr20.S.npy')
+print([X.shape, Y.shape, S.shape])
 
 
 # get indexes of train set individuals
-train=np.loadtxt(data_root+'chm21.train.txt', dtype=str)
-train_ix=[i for i,q in enumerate(train) if q in S]
+train=np.loadtxt('../data/reference-panel/split/train.strands.txt', dtype=str)
+train_ix=[i for i,q in enumerate(S) if q in train]
+np.random.shuffle(train_ix)
 
 
 # additional (random) dev set samples -- first choose indexes
-n=100
-S=np.load(data_root+'simulated/label/dev_10gen.result.npz')['S']
-s=np.random.choice(S, size=n, replace=False)
+S=np.load(data_root+'simulated_chr20/label/dev_10gen.result.npz')['S']
 
 # then load and subset -- AMR is the first ancestry label, ignored for now
-x_f=data_root+'simulated/numpy/dev_10gen.query.ALL_X.npz'
-y_f=data_root+'simulated/label/dev_10gen.result.npz'
+x_f=data_root+'simulated_chr20/numpy/dev_10gen.query.npz'
+y_f=data_root+'simulated_chr20/label/dev_10gen.result.npz'
 S_f=np.load(x_f)['S']
-X_dev=np.load(x_f)['G'][[np.where(S_f==(i))[0][0] for i in s],:nv,:na]
+X_dev=np.load(x_f)['G'][[np.where(S_f==(i))[0][0] for i in S],:nv,:na]
 S_f=np.load(y_f)['S']
-Y_dev=to_categorical(np.load(y_f)['L'][[np.where(S_f==(i))[0][0] for i in s],:nv], dtype='bool')[:,:,1:]
+Y_dev=to_categorical(np.load(y_f)['L'][[np.where(S_f==(i))[0][0] for i in S],:nv], dtype='bool')[:,:,1:]
 print([X_dev.shape, Y_dev.shape])
 print("loaded data...")
 
 
 
 ## Create model, declare optimizer
-model = segnet(input_shape=(nv,na), n_classes=nc, n_filters=nf)
+model = segnet(input_shape=(nv,na), n_classes=nc, n_filters=nf, width=fs)
 adam = optimizers.Adam(lr=1e-4)
 
 
@@ -103,13 +105,13 @@ if ge:
     history=model.fit_generator(generator=generator, validation_data=(X_dev, Y_dev), 
                                 epochs=ne, callbacks=[es])
 else:
-    history=model.fit(X[train_ix,:nv,:na], Y[train_ix,:nv,1:], validation_data=(X_dev, Y_dev),
+    history=model.fit(X[train_ix,:nv,:na], Y[train_ix,:nv,:], validation_data=(X_dev, Y_dev),
                       batch_size=bs, epochs=ne, callbacks=[es])
 
 
 
 ## Save model weights
-model.save_weights("chm21all_saved_weights.h5")
+model.save_weights("chm20.full_model.h5")
 print("saved weights!")
 
 

@@ -44,7 +44,7 @@ class DataGenerator(keras.utils.Sequence):
         'Generates data containing batch_size samples' 
         # X : (n_samples, *dim, n_channels)
         X_sm = self.X[list_IDs_temp, :self.dim, :self.n_alleles] 
-        y_sm = self.Y[list_IDs_temp, :self.dim, 1:]         
+        y_sm = self.Y[list_IDs_temp, :self.dim, :]         
         if self.admix:
             return naive_admixing(X_sm, y_sm)
         else:
