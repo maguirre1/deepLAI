@@ -11,130 +11,196 @@ from segnet import segnet
 from generator import DataGenerator
 
 
+_README="""
+A script to train segnet model of local ancestry.
 
-## Set variant filtration criteria (just subsetting)
-nv = int(2**19) # variants
-na = 2          # alleles
-nc = 7          # ancestries 
-bs = 32         # batch size
-ge = True       # use generator object
-nf = 16         # number of filters for segnet
-fs = 8          # segnet filter size 
-ne = 100        # number of epochs
-# todo: give this a command-line interface
-
-
-## Load data
-data_root='/home/magu/deepmix/data/reference_panel/'
-X = np.load(data_root+'unzipped/panel_chr20.G.npy', mmap_mode='r')
-X = np.hstack([X, np.zeros((X.shape[0], nv-X.shape[1], X.shape[2]), dtype=bool)])
-Y = np.load(data_root+'unzipped/panel_chr20.L.npy', mmap_mode='r')
-Y = np.hstack([Y, np.zeros((Y.shape[0], nv-Y.shape[1], Y.shape[2]), dtype=bool)])
-S = np.load(data_root+'unzipped/panel_chr20.S.npy')
-print([X.shape, Y.shape, S.shape])
-
-
-# get indexes of train set individuals
-train=np.loadtxt('../data/reference-panel/split/train.strands.txt', dtype=str)
-train_ix=[i for i,q in enumerate(S) if q in train]
-np.random.shuffle(train_ix)
-
-
-# additional (random) dev set samples -- first choose indexes
-S=np.load(data_root+'simulated_chr20/label/dev_10gen.result.npz')['S']
-
-# then load and subset -- AMR is the first ancestry label, ignored for now
-x_f=data_root+'simulated_chr20/numpy/dev_10gen.query.npz'
-y_f=data_root+'simulated_chr20/label/dev_10gen.result.npz'
-S_f=np.load(x_f)['S']
-X_dev=np.load(x_f)['G'][[np.where(S_f==(i))[0][0] for i in S],:nv,:na]
-S_f=np.load(y_f)['S']
-Y_dev=to_categorical(np.load(y_f)['L'][[np.where(S_f==(i))[0][0] for i in S],:nv], dtype='bool')[:,:,1:]
-print([X_dev.shape, Y_dev.shape])
-print("loaded data...")
-
-
-
-## Create model, declare optimizer
-model = segnet(input_shape=(nv,na), n_classes=nc, n_filters=nf, width=fs)
-adam = optimizers.Adam(lr=1e-4)
-
-
-# hvd adjustments -- here and below
-#adam = optimizers.Adam(lr=1e-4 * hvd.size())
-#adam = hvd.DistributedOptimizer(adam)
-
-# do a parallel thing (not hvd)
-#strategy = tf.distribute.MirroredStrategy()
-#print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
-
-# Open a strategy scope.
-#with strategy.scope():
-#    # Everything that creates variables should be under the strategy scope.
-#    # In general this is only model construction & `compile()`.
-#    model = segnet((n_variants, n_alleles))
-#    model.compile(optimizer=adam, loss='categorical_crossentropy', metrics=['accuracy']) 
-
-
-
-## Compile model and summarize
-model.compile(optimizer=adam, loss='categorical_crossentropy', metrics=['accuracy']) 
-print(model.summary())
-# print('Learning rate = ' + str(K.eval(model.optimizer.lr)))
-
-
-# more multi-gpu stuff
-no_call="""
-# Horovod: broadcast initial states from rank 0 to all other processes 
-callback = [hvd.callbacks.BroadcastGlobalVariablesCallback(0)]
-
-# Horovod: save checkpoints only on worker 0 to prevent other workers from corrupting them.
-if hvd.rank() == 0:
-   callback.append(keras.callbacks.ModelCheckpoint('./checkpoint-{epoch}.h5'))
+-Matthew Aguirre (magu[at]stanford[dot]edu)
 """
 
 
-
-## Train model 
-print("training model...")
-
-es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=25)
-if ge: 
-    params={'X':X, 'Y':Y, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':na}
-    generator=DataGenerator(train_ix, **params)
-    history=model.fit_generator(generator=generator, validation_data=(X_dev, Y_dev), 
-                                epochs=ne, callbacks=[es])
-else:
-    history=model.fit(X[train_ix,:nv,:na], Y[train_ix,:nv,:], validation_data=(X_dev, Y_dev),
-                      batch_size=bs, epochs=ne, callbacks=[es])
+_TODO="""
+1. Add trainset and devset paths to parser
+2. Potentially number of variants and ancestry labels as well 
+    - these are currently auto-inferred
+3. Add early-stopping parameters to parser
+4. And learning rate
+5. Implement hvd multi-gpu??
+"""
 
 
+# quick check if we're on galangal
+import platform
+if platform.uname().node=='galangal.stanford.edu':
+    data_root='/home/magu/deepmix/data/reference_panel/'
+    # if so, use GPU #1
+    os.environ["CUDA_VISIBLE_DEVICES"]="1"
+else: # assume sherlock
+    data_root='/scratch/users/magu/deepmix/data/'
 
-## Save model weights
-model.save_weights("chm20.full_model.h5")
-print("saved weights!")
+
+
+# define functions
+def load_train_set(chm=20):
+    global data_root
+    # load train data
+    X = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.G.npy', mmap_mode='c')
+    Y = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.L.npy', mmap_mode='c')
+    S = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.S.npy')
+    # and indexes
+    train=np.loadtxt('../data/reference-panel/split/train.strands.txt', dtype=str)
+    train_ix=[i for i,q in enumerate(S) if q in train]
+    np.random.shuffle(train_ix)
+    print([X.shape, Y.shape, S.shape, len(train_ix)])
+    return X, Y, S, train_ix
 
 
 
-## Plot loss during training -- with final devset accuracy
-_, dev_acc = model.evaluate(X_dev, Y_dev, verbose=0)
+def load_dev_set(chm=20):
+    global data_root
+    # file paths
+    x_f = data_root+'simulated_chr'+str(chm)+'/numpy/dev_10gen.query.npz'
+    y_f = data_root+'simulated_chr'+str(chm)+'/label/dev_10gen.result.npz'
+    # load genetic data, then labels, making sure the sample ordering is the same
+    S = np.load(data_root+'simulated_chr'+str(chm)+'/label/dev_10gen.result.npz')['S']
+    S_f = np.load(x_f)['S']
+    ids = [np.where(S_f==(i))[0][0] for i in S]
+    X_dev = np.load(x_f)['G'][ids,:,:]
+    S_f = np.load(y_f)['S']
+    ids = [np.where(S_f==(i))[0][0] for i in S]
+    # rfmix simulate has one-indexed labels, so the last slice is necessary
+    Y_dev = to_categorical(np.load(y_f)['L'][ids,:], dtype='bool')[:,:,1:] 
+    print([X_dev.shape, Y_dev.shape])
+    return X_dev, Y_dev, S_f[ids]
 
-# 1.1) plot loss during training
-import matplotlib.pyplot as plt
-plt.figure(1, (9,9))
-plt.subplot(211)
-plt.title('Loss during training')
-plt.plot(history.history['loss'], label='train set')
-plt.plot(history.history['val_loss'], label='dev set')
-plt.legend()
 
-# 1.2) plot accuracy during training
-plt.subplot(212)
-plt.title('Accuracy')
-plt.plot(history.history['accuracy'], label='train set')
-plt.plot(history.history['val_accuracy'], label='dev set')
-plt.legend()
-plt.savefig('acc_during_training.png')
+
+def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_epochs=100,
+          dropout_rate=0.01, input_dropout_rate=0.01, batch_norm=False, filter_size=8, 
+          pool_size=4, num_blocks=5, num_filters=8):
+    ## Load data
+    X, Y, S, train_ix = load_train_set(chm=chrom)
+    X_dev, Y_dev, S_dev = load_dev_set(chm=chrom)
+    
+    # get number of variants, alleles, and ancestries
+    nv = int(2**(int(np.log2(X.shape[1])))) # highest power of 2 less than input nv
+    na = X.shape[-1]
+    nc = Y.shape[-1]
+    
+    ## Create model, declare optimizer
+    model = segnet(input_shape=(nv,na), n_classes=nc, 
+                   width=filter_size, n_filters=num_filters, pool_size=pool_size, 
+                   n_blocks=num_blocks, dropout_rate=dropout_rate, 
+                   input_dropout_rate=input_dropout_rate, l2_lambda=1e-30, 
+                   batch_normalization=batch_norm)
+    adam = optimizers.Adam(lr=1e-4)
+
+    ## Compile model and summarize
+    model.compile(optimizer=adam, loss='categorical_crossentropy', metrics=['accuracy']) 
+    print(model.summary())    
+    
+    ## Train model 
+    es = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=25)
+    if no_generator:
+        history=model.fit(X[train_ix,:nv,:na], Y[train_ix,:nv,:], 
+                          validation_data=(X_dev[:,:nv,:], Y_dev[:,:nv,:]),
+                          batch_size=batch_size, epochs=num_epochs, callbacks=[es])
+    else:
+        params={'X':X, 'Y':Y, 'dim':nv, 'batch_size':batch_size, 'n_classes':nc, 'n_alleles':na}
+        param2={'X':X_dev, 'Y':Y_dev, 'dim':nv, 'batch_size':batch_size, 'n_classes':nc, 'n_alleles':na}
+        train_gen=DataGenerator(train_ix, **params)
+        valid_gen=DataGenerator(np.arange(X_dev.shape[0]), **param2)
+        history=model.fit_generator(generator=train_gen, validation_data=valid_gen, 
+                                    epochs=num_epochs, callbacks=[es])
+    ## Save model weights and return
+    model.save_weights(out+'.h5')
+    return history
+
+    
+
+def plot_info(history, out):
+    import matplotlib as mpl
+    mpl.use('Agg')
+    import matplotlib.pyplot as plt
+    # plot loss during training
+    plt.figure(1, (9,9))
+    plt.subplot(211)
+    plt.title('Loss during training')
+    plt.plot(history.history['loss'], label='train set')
+    plt.plot(history.history['val_loss'], label='dev set')
+    plt.legend()
+
+    # plot accuracy during training
+    plt.subplot(212)
+    plt.title('Accuracy')
+    plt.plot(history.history['accuracy'], label='train set')
+    plt.plot(history.history['val_accuracy'], label='dev set')
+    plt.legend()
+    plt.savefig(out+'info.png')
+
+
+
+def main():
+    import argparse
+    parser=argparse.ArgumentParser(description=_README)
+    parser.add_argument('--chrom', metavar='20', type=int, nargs=1, required=False,
+                         default=20,
+                         help='Chromosome to use (must be in 1,2,...,22)')
+    parser.add_argument('--batch-size', metavar='4', type=int, required=False,
+                         default=4,
+                         help='Minibatch size for training')
+    parser.add_argument('--num-filters', metavar='8', type=int, required=False,
+                         default=8,
+                         help='Number of filters in first segnet layer')
+    parser.add_argument('--filter-size', metavar='16', type=int, required=False,
+                         default=16,
+                         help='Convolutional filter size in segnet')
+    parser.add_argument('--num-epochs', metavar='100', type=int, required=False,
+                         default=100,
+                         help='Number of epochs to train model')
+    parser.add_argument('--num-blocks', metavar='5', type=int, required=False,
+                         default=5,
+                         help='Number of down/upward blocks (equivalent to model depth)')
+    parser.add_argument('--pool-size', metavar='4', type=int, required=False,
+                         default=4,
+                         help='Width of maxpool operator')
+    parser.add_argument('--dropout-rate', metavar='0.01', type=int, required=False,
+                         default=0.01,
+                         help='Dropout rate at each layer')
+    parser.add_argument('--input-dropout-rate', metavar='0.01', type=int, required=False,
+                         default=0.01,
+                         help='Dropout rate after input layer')
+    parser.add_argument('--batch-norm', action='store_true',
+                         help='Flag to use batch normalization')
+    parser.add_argument('--no-generator', action='store_true',
+                         help='Flag to not use generator object, and load all data into memory')
+    #parser.add_argument('--n-alleles', metavar='na', type=int, nargs=1, required=False,
+    #                     default=2,
+    #                     help='Number of input alleles to consider')
+    #parser.add_argument('--nvar', metavar='nv', type=int, nargs=1, required=True,
+    #                     help='Number of variants on chromosome to use (must be power of 2)')
+    #parser.add_argument('--multi-gpu', metavar='hor', action='store_true',
+    #                     help='Flag to use horovod multi-gpu (also requires different script invocation)')
+    parser.add_argument('--out', metavar='model_weights', type=str, required=True,
+                         help='Output path prefix -- extensions automatically added')
+    args=parser.parse_args()
+    
+    # safety catch -- don't overwrite another model
+    if os.path.exists(args.out+'.h5'):
+        print(args.out+'.h5 object already found. Aborting!')
+        exit(1)
+    
+    # train model, plot info
+    print(args)
+    history=train(**vars(args))
+    plot_info(history, args.out)
+    return
+    
+
+
+if __name__=='__main__':
+    main()
+
+
 
 
 
