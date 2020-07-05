@@ -82,7 +82,7 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     X_dev, Y_dev, S_dev = load_dev_set(chm=chrom)
     
     # get number of variants, alleles, and ancestries
-    nv = int(2**(int(np.log2(X.shape[1])))) # highest power of 2 less than input nv
+    nv = X.shape[1] - (X.shape[1] % (pool_size**num_blocks)) # truncation by up to 1024 
     na = X.shape[-1]
     nc = Y.shape[-1]
     
