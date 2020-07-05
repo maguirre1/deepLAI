@@ -34,9 +34,15 @@ if platform.uname()[1]=='galangal.stanford.edu':
     data_root='/home/magu/deepmix/data/reference_panel/'
     # if so, use GPU #1
     os.environ["CUDA_VISIBLE_DEVICES"]="1"
-else: # assume sherlock
+else: 
+    # assume we're on sherlock -- load modules and check versions
     data_root='/scratch/users/magu/deepmix/data/'
-
+    os.system("ml purge; ml {}".format(" ".join("math","devel","python/3.6.1",
+               "cuda/10.1.168","py-scipy/1.4.1_py36","cudnn/7.6.4",
+               "py-numpy/1.18.1_py36","py-tensorflow/2.1.0_py36",
+               "py-pandas/1.0.3_py36")))
+    os.system("nvidia-smi --query-gpu=index,name --format=csv,noheader"
+    os.system("which python3; module list") 
 
 
 # define functions
