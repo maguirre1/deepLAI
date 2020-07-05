@@ -30,7 +30,7 @@ _TODO="""
 
 # quick check if we're on galangal
 import platform
-if platform.uname().node=='galangal.stanford.edu':
+if platform.uname()[1]=='galangal.stanford.edu':
     data_root='/home/magu/deepmix/data/reference_panel/'
     # if so, use GPU #1
     os.environ["CUDA_VISIBLE_DEVICES"]="1"
