@@ -1,7 +1,7 @@
 import numpy as np
-import keras
+import tensorflow.keras as keras
 import scipy.stats as ss
-from keras.utils import to_categorical
+from tensorflow.keras.utils import to_categorical
 
 class DataGenerator(keras.utils.Sequence):
     'Generates data for Keras'

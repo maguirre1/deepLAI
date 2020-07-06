@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 import numpy as np
-import keras
-from keras import regularizers
-from keras.layers import Input, Dense, Activation, BatchNormalization, Conv1D
-from keras.layers import concatenate, MaxPooling1D, UpSampling1D, Dropout
-from keras.activations import softmax
-from keras.models import Model
-from keras.utils import to_categorical
-import keras.backend as K
 import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import regularizers
+from tensorflow.keras.layers import Input, Dense, Activation, BatchNormalization, Conv1D
+from tensorflow.keras.layers import concatenate, MaxPooling1D, UpSampling1D, Dropout
+from tensorflow.keras.activations import softmax
+from tensorflow.keras.models import Model
+from tensorflow.keras.utils import to_categorical
+import tensorflow.keras.backend as K
 
 
 # define model class

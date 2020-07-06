@@ -3,9 +3,9 @@ import os
 import numpy as np
 import scipy.stats as ss
 import tensorflow as tf
-from keras import optimizers, callbacks, regularizers
-from keras.models import Model
-from keras.utils import to_categorical
+from tensorflow.keras import optimizers, callbacks, regularizers
+from tensorflow.keras.models import Model
+from tensorflow.keras.utils import to_categorical
 #import horovod.keras as hvd 
 from segnet import segnet
 from generator import DataGenerator
