@@ -19,12 +19,12 @@ if [ $hn = "galangal.stanford.edu" ]; then
 else
 	# if not then fiddle around with modules
 	ml purge; 
-	ml load python/3.6.1 cuda/10.1.168 cudnn/7.4.1.5;
-	echo "load 1"
-	ml load py-numpy/1.18.1_py36 py-tensorflow/2.0.0_py36;
-	echo "load 2"	
+	ml load python/3.6.1 cuda/10.1.168 cudnn/7.4.1.5; # openmpi/4.0.3
+	ml load py-numpy/1.18.1_py36 py-scipy/1.4.1_py36 py-tensorflow/2.0.0_py36;
+	# display node info
 	nvidia-smi --query-gpu=index,name --format=csv,noheader
 	nvidia-smi
+	# display packages
 	which python3
 	ml list
 fi
