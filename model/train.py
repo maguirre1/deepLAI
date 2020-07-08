@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import os
 import numpy as np
-import scipy.stats as ss
 import tensorflow as tf
 from tensorflow.keras import optimizers, callbacks, regularizers
 from tensorflow.keras.models import Model
@@ -43,8 +42,8 @@ else:
 def load_train_set(chm=20):
     global data_root
     # load train data
-    X = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.G.npy', mmap_mode='c')
-    Y = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.L.npy', mmap_mode='c')
+    X = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.G.npy', mmap_mode='r')
+    Y = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.L.npy', mmap_mode='r')
     S = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.S.npy')
     # and indexes
     train=np.loadtxt('../data/reference-panel/split/train.strands.txt', dtype=str)
