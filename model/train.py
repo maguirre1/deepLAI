@@ -60,7 +60,8 @@ def load_dev_set(chm=20):
     x_f = data_root+'simulated_chr'+str(chm)+'/numpy/dev_10gen.query.npz'
     y_f = data_root+'simulated_chr'+str(chm)+'/label/dev_10gen.result.npz'
     # load genetic data, then labels, making sure the sample ordering is the same
-    S = np.load(data_root+'simulated_chr'+str(chm)+'/label/dev_10gen.result.npz')['S']
+    sub=np.random.choice(np.arange(200), 50, replace=False) 
+    S = np.load(data_root+'simulated_chr'+str(chm)+'/label/dev_10gen.result.npz')['S'][sub]
     S_f = np.load(x_f)['S']
     ids = [np.where(S_f==(i))[0][0] for i in S]
     X_dev = np.load(x_f)['G'][ids,:,:]
@@ -86,12 +87,14 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     nc = Y.shape[-1]
     
     ## Create model, declare optimizer
+    os.system('echo "pre-model"; nvidia-smi')
     model = segnet(input_shape=(nv,na), n_classes=nc, 
                    width=filter_size, n_filters=num_filters, pool_size=pool_size, 
                    n_blocks=num_blocks, dropout_rate=dropout_rate, 
                    input_dropout_rate=input_dropout_rate, l2_lambda=1e-30, 
                    batch_normalization=batch_norm)
     adam = optimizers.Adam(lr=1e-4)
+    os.system('echo "post-compile"; nvidia-smi')
 
     ## Compile model and summarize
     model.compile(optimizer=adam, loss='categorical_crossentropy', metrics=['accuracy']) 
@@ -162,10 +165,10 @@ def main():
     parser.add_argument('--pool-size', metavar='4', type=int, required=False,
                          default=4,
                          help='Width of maxpool operator')
-    parser.add_argument('--dropout-rate', metavar='0.01', type=int, required=False,
+    parser.add_argument('--dropout-rate', metavar='0.01', type=float, required=False,
                          default=0.01,
                          help='Dropout rate at each layer')
-    parser.add_argument('--input-dropout-rate', metavar='0.01', type=int, required=False,
+    parser.add_argument('--input-dropout-rate', metavar='0.01', type=float, required=False,
                          default=0.01,
                          help='Dropout rate after input layer')
     parser.add_argument('--batch-norm', action='store_true',
