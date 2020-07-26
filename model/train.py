@@ -32,7 +32,11 @@ import platform
 if platform.uname()[1]=='galangal.stanford.edu':
     data_root='/home/magu/deepmix/data/reference_panel/'
     # if so, use GPU #1
+    tf.config.experimental.set_visible_devices([], 'GPU')
     os.environ["CUDA_VISIBLE_DEVICES"]="1"
+    # don't take up the whole gpu
+    for d in tf.config.list_physical_devices('GPU'):
+        tf.config.experimental.set_memory_growth(d, True)
 else: 
     # assume we're on sherlock -- load modules and check versions
     data_root='/scratch/users/magu/deepmix/data/'
@@ -149,8 +153,7 @@ def plot_info(history, out):
     plt.savefig(out+'info.png')
 
 
-
-def main():
+def get_args():
     import argparse
     parser=argparse.ArgumentParser(description=_README)
     parser.add_argument('--chrom', metavar='20', type=int, nargs=1, required=False,
@@ -194,7 +197,12 @@ def main():
     parser.add_argument('--out', metavar='model_weights', type=str, required=True,
                          help='Output path prefix -- extensions automatically added')
     args=parser.parse_args()
-    
+    return args
+
+
+
+def main():
+    args=get_args()    
     # safety catch -- don't overwrite another model
     if os.path.exists(args.out+'.h5'):
         print(args.out+'.h5 object already found. Aborting!')
