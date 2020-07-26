@@ -90,14 +90,13 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     X, Y, S, train_ix = load_train_set(chm=chrom)
     X_dev, Y_dev, S_dev = load_dev_set(chm=chrom)
     
-    # filter variants
+    # filter variants, get counts of variants, alleles, ancestries
     vs=filter_ac(X, ac=2)
-    
-    # get number of variants, alleles, and ancestries
     #nv = X.shape[1] - (X.shape[1] % (pool_size**num_blocks)) # truncation by up to 1024 
-    nv = len(vs) - (len(vs) - (pool_size**num_blocks))
+    nv = len(vs) - (len(vs) % (pool_size**num_blocks))
     na = X.shape[-1]
     nc = Y.shape[-1]
+    np.savetxt(out+'var_index.txt', np.arange(len(vs))[vs], fmt='%i')
     
     ## Create model, declare optimizer
     os.system('echo "pre-model"; nvidia-smi')
