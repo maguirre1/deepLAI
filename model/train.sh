@@ -15,7 +15,7 @@ A wrapper script for train.py
 # first check if we're on galangal
 hn=$(hostname)
 if [ $hn = "galangal.stanford.edu" ]; then 
-	continue
+	nvidia-smi
 else
 	# if not then fiddle around with modules
 	ml purge; 

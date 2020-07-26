@@ -33,6 +33,11 @@ if platform.uname()[1]=='galangal.stanford.edu':
     data_root='/home/magu/deepmix/data/reference_panel/'
     # if so, use GPU #1
     os.environ["CUDA_VISIBLE_DEVICES"]="1"
+    tf.config.experimental.set_visible_devices([], 'GPU')
+    # os.environ["CUDA_VISIBLE_DEVICES"]="1"
+    # don't take up the whole gpu
+    # for d in tf.config.list_physical_devices('GPU'):
+    #    tf.config.experimental.set_memory_growth(d, True)
 else: 
     # assume we're on sherlock -- load modules and check versions
     data_root='/scratch/users/magu/deepmix/data/'
