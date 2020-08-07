@@ -93,9 +93,10 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     # filter variants, get counts of variants, alleles, ancestries
     vs=filter_ac(X, ac=2)
     #nv = X.shape[1] - (X.shape[1] % (pool_size**num_blocks)) # truncation by up to 1024 
-    nv = len(vs) - (len(vs) % (pool_size**num_blocks))
+    nv = np.sum(vs) - (np.sum(vs) % (pool_size**num_blocks))
     na = X.shape[-1]
     nc = Y.shape[-1]
+    vs = np.array([i and s <= nv for i,s in zip(vs,np.cumsum(vs))]) # update truncation
     np.savetxt(out+'var_index.txt', np.arange(len(vs))[vs], fmt='%i')
     
     ## Create model, declare optimizer
@@ -115,12 +116,12 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     ## Train model 
     es = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=25)
     if no_generator:
-        history=model.fit(X[train_ix,vs[:nv],:na], Y[train_ix,vs[:nv],:], 
-                          validation_data=(X_dev[:,vs[:nv],:], Y_dev[:,vs[:nv],:]),
+        history=model.fit(X[train_ix,:,:][:,vs,:][:,:,:na], Y[train_ix,:,:][:,vs,:], 
+                          validation_data=(X_dev[:,vs,:na], Y_dev[:,vs,:]),
                           batch_size=batch_size, epochs=num_epochs, callbacks=[es])
     else:
-        params={'X':X[:,vs,:], 'Y':Y, 'dim':nv, 'batch_size':batch_size, 'n_classes':nc, 'n_alleles':na}
-        param2={'X':X_dev[:,vs,:], 'Y':Y_dev, 'dim':nv, 'batch_size':batch_size, 'n_classes':nc, 'n_alleles':na}
+        params={'X':X[:,vs,:], 'Y':Y[:,vs,:], 'dim':nv, 'batch_size':batch_size, 'n_classes':nc, 'n_alleles':na}
+        param2={'X':X_dev[:,vs,:], 'Y':Y_dev[:,vs,:], 'dim':nv, 'batch_size':batch_size, 'n_classes':nc, 'n_alleles':na}
         train_gen=DataGenerator(train_ix, **params)
         valid_gen=DataGenerator(np.arange(X_dev.shape[0]), **param2)
         history=model.fit_generator(generator=train_gen, validation_data=valid_gen, 

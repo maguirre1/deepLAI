@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -J segnet
 #SBATCH -p gpu,owners
-#SBATCH --gpus=1 
-#SBATCH -t 20:00:00
+#SBATCH --gpus=4 
+#SBATCH -t 24:00:00
 #SBATCH --cpus-per-gpu=1
-#SBATCH --mem-per-gpu=64G
+#SBATCH --mem-per-gpu=16G
 
 
 __README="""
@@ -31,7 +31,7 @@ fi
 
 
 # call the model training script
-python3 train.py --out test_segnet_chr20 
+python3 train.py --out test_segnet_chr20 --no-generator --dropout-rate=0.0 --input-dropout-rate=0.05 
 
 ## --batch-size=16 --num-filters=8 --filter-size=8 --pool-size=6 --input-dropout-rate=0.01 --dropout-rate=0.0 --num-blocks=5
 
