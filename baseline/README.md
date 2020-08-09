@@ -1,3 +1,3 @@
 # Baseline model
 
-RFMix scripts.
+RFMix scripts. Still needs to be updated to current version of reference panel.
