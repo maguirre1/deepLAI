@@ -2,7 +2,7 @@
 
 ### Summary
 
-We start with two files consisting of genotypes from individuals in 1000 Genomes, HGDP, and SGDP. One contains all individuals (n=3,558), and the other contains only non-admixed individuals (n=1,380). The latter non-admixed cohort was selected using ADMIXTURE. Details on the curation of these input data can be found in [this repository](https://github.com/rivas-lab/gsp/tree/master/reference_panel). In brief, the quality control procedure consists of these steps:
+We start with two files consisting of genotypes from individuals in 1000 Genomes, HGDP, and SGDP. One contains all individuals (n=3,558), and the other contains only non-admixed individuals (n=1,382). The latter non-admixed cohort was selected using ADMIXTURE. Details on the curation of these input data can be found in [this repository](https://github.com/rivas-lab/gsp/tree/master/reference_panel). In brief, the quality control procedure consists of these steps:
 
  - First, to remove indels
  - Second, to select only variants present in all three reference datasets (1KG, HDGP, and SGDP)
@@ -16,8 +16,8 @@ Resulting population assignments, as well as sample info, are in the `reference_
 # Entire panel (n=3558) -- positions in hg38 for both files
 /oak/stanford/groups/mrivas/public_data/ref_1kg_hgdp_sgdp/beagle_1kg_hgdp_sgdp_ref_panel.vcf.gz
 
-# Non-admixed set (n=1380)
-/oak/stanford/groups/mrivas/public_data/ref_1kg_hgdp_sgdp/beagle_1kg_hgdp_sgdp_ref_panel_pure.vcf.gz 
+# Non-admixed set (n=1382)
+/oak/stanford/groups/mrivas/public_data/ref_1kg_hgdp_sgdp/beagle_1kg_hgdp_sgdp_ref_panel_pure_aug.vcf.gz 
 ```
 
 
@@ -26,11 +26,11 @@ Resulting population assignments, as well as sample info, are in the `reference_
 
 Scripts: 
 
-1. `convert.sh`.
+1. `convert.sh`. A wrapper script which calls `vcf_to_numpy.py` (below) for each chromosome to prepare the reference panel (above) for input into the [segnet model](https://github.com/maguirre1/deepLAI/tree/master/model).
 
 2. `vcf_to_numpy.py` converts phased sample genotypes in variant call format (VCF -- [specification here](https://samtools.github.io/hts-specs/VCFv4.2.pdf)) to a numpy genotype file, for use in deep learning models. See below for details on the specification of this file.
 
-3. `vcf_to_this_numpy.py`
+3. `vcf_to_this_numpy.py`. Coming soon!!
 
 
 #### Specification for numpy genotype file
@@ -46,5 +46,7 @@ Prior to use in neural net models for LAI, genomes are processed into compressed
 
 ### Train/Dev/Test Split
 
-Scripts: `split_pop.py`
+Scripts: `filter_and_split.ipynb`. This jupyter notebook performs quality control: first, removing populations that are too small for learning (e.g. "African Hunter Gatherer" -- AHG); and second, ensuring that no familially related individuals are retained. It splits the resulting dataset (`n=1,345`) into training (`n=1,045`), dev (`n=100`), and test (`n=200`) sets. 
+
+Lists of sample IDs for the train/dev/test sets are in the `split` subdirectory. For each population (e.g. `dev`) there are three files: (1) `dev.txt`, which containts sample IDs (2) `dev.superpop.txt`, which contains superpopulation labels (e.g. `EUR`) and sample IDs, and (3) `dev.strands.txt`, which contains "stranded" sample IDs (e.g. `NA12878_S1`).
 
