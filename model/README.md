@@ -1,1 +1,39 @@
 # Model info
+
+This section of the repository contains code for deep learning model objects and weights. Models are implemented in [Keras](https://keras.io/), with weight objects stored as [h5 files](https://keras.io/getting_started/faq/). Details for specific models and the data generator objects used to train them follow.
+
+### Data Generators
+
+The genetic data objects (see [here](https://github.com/maguirre1/deepLAI/tree/master/data/reference-panel)) are quite large. A [generator object](https://stackoverflow.com/questions/46493419/use-a-generator-for-keras-model-fit-generator) is implemented in `generator.py` to facilitate training on GPUs for which the training set is larger-than-memory. 
+
+The generator object also (optionally) implements naive admixture simulation. See the script and `segnet.py` for more details.
+
+### Segnet
+
+Our first model is based on the [Segnet](https://github.com/imlab-uiip/keras-segnet) architecture. For more details, see the [project site](http://mi.eng.cam.ac.uk/projects/segnet/). Relevant hyperparameters for the network include
+
+ - Input shape: (required) A tuple describing the (number of variants, number of alleles) input to the model.
+ - N classes: (required) An integer giving the number of label classes (ancestries) to output.
+ - Width: (default 16) Filter width for convolutional filters.
+ - Pool size: (default 4) Size of max-pool operator after convolutional layer blocks.
+ - N blocks: (default 5) Number of conv-layer blocks for the model. Morally equivalent to model depth.
+ - Dropout rate: (default 0.01) Lambda for dropout rate after conv blocks.
+ - Input dropout rate: (default 0.01) Lambda for dropout rate after data input layer.
+ - L2 lambda: (default 1e-30) Lambda for L2-regularization after each conv block.
+ - Batch normalization: (default False) Whether to use batch normalization after each conv block.
+ 
+ The model object is implemented as a python class, and is readily importable for use in other scripts, such as `train.py`.
+ 
+ ### Training scripts and development environment
+ 
+Segnet model objects may be trained using the python script `train.py`. Run `train.py -h` for a full list of options for the script. All of the above hyperparameter options for the segnet model are available for use/modification. It also contains flags for how long to run the model (`--num-epochs`), whether to use a the data generator object in `generator.py` for training (`--no-generator`), and what to name output files (`--out`).
+ 
+Output files include the list of variants used by the model (`out.var_index.txt`) and model weights (`out.h5`).
+
+The script `train.py` automatically determines whether it is being run on [Sherlock](sherlock.stanford.edu) or Galangal (`galangal.stanford.edu`). An additional wrapper script `train.sh` can be used to facilitate training for multiple script iterations (e.g. for hyperparameter optimization, coming soon).
+
+Additionally, a jupyter notebook (`sandbox.ipynb`) is provided as a sandbox-style development environment for the scripts in this directory. As it is intended for quick tests, no further documentation outside the notebook is provided.
+
+### Hyperparameters
+
+This is still under development! We're starting to test model performance and feasibility under varied hyperparameter options (see above). So far, we've counted the number of trainable model parameters resulting from several choices of model hyperparameters (see `params.py`). Results are in `hparam_to_param.tsv`. We'll likely be prioritizing low-depth models with between 1e5 and 1e7 parameters to start.
