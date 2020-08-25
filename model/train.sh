@@ -3,10 +3,10 @@
 #SBATCH -p gpu,owners
 #SBATCH --gpus=1 
 #SBATCH -C GPU_MEM:32GB
-#SBATCH -t 48:00:00
+#SBATCH -t 12:00:00
 #SBATCH --cpus-per-gpu=1
 #SBATCH --mem-per-gpu=32G
-#SBATCH --out logs/train_%A.out
+#SBATCH --out logs/array_%A.out
 
 __README="""
 A wrapper script for train.py
@@ -32,9 +32,9 @@ fi
 
 
 # call the model training script
-python3 train.py --out chr20p_short --array-only \
+python3 train.py --out chr20_array --array-only \
   --filter-size=8 --num-filter=12 --num-blocks=4 --batch-size=128
- # --bp-start=1 --bp-end=28100000 \
+
  
 PARAMS="""
   --chrom 20            Chromosome to use (must be in 1,2,...,22)
