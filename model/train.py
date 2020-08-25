@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os
+import os,sys
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import optimizers, callbacks, regularizers
@@ -7,7 +7,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.utils import to_categorical
 #import horovod.keras as hvd 
 from segnet import segnet
-from generator import DataGenerator
+from generator import DataGenerator,DataLoader
 
 
 _README="""
@@ -43,36 +43,44 @@ else:
 
 
 # define functions
-def load_train_set(chm=20):
+def load_train_set(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
     global data_root
+    # subset variants
+    V = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.V.npy')
+    ix1 = max(ix, min(np.where(V[:,1].astype(int)-bp1 >= 0)[0]))
+    ix2 = min(V.shape[0]+1, min(ix+count, max(np.where(V[:,1].astype(int)-bp2 <= 0)[0])))
     # load train data
-    X = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.G.npy', mmap_mode='r')
-    Y = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.L.npy', mmap_mode='r')
+    X = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.G.npy', mmap_mode='r')#[:,ix1:ix2,:]
+    Y = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.L.npy', mmap_mode='r')#[:,ix1:ix2,:]
     S = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.S.npy')
     # and indexes
     train=np.loadtxt('../data/reference-panel/split/train.strands.txt', dtype=str)
     train_ix=[i for i,q in enumerate(S) if q in train]
     np.random.shuffle(train_ix)
     print([X.shape, Y.shape, S.shape, len(train_ix)])
-    return X, Y, S, train_ix
+    return X, Y, S, V, train_ix, ix1, ix2
 
 
 
-def load_dev_set(chm=20):
+def load_dev_set(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
     global data_root
     # file paths
     x_f = data_root+'simulated_chr'+str(chm)+'/numpy/dev_10gen.query.npz'
     y_f = data_root+'simulated_chr'+str(chm)+'/label/dev_10gen.result.npz'
+    # subset genetic data
+    V = np.load(x_f)['V']
+    ix1 = max(ix, min(np.where(V[:,1].astype(int)-bp1 >= 0)[0]))
+    ix2 = min(V.shape[0], min(ix+count, max(np.where(V[:,1].astype(int)-bp2 <= 0)[0])))
     # load genetic data, then labels, making sure the sample ordering is the same
-    sub=np.random.choice(np.arange(200), 50, replace=False) 
+    sub=np.random.choice(np.arange(200), 120, replace=False) 
     S = np.load(data_root+'simulated_chr'+str(chm)+'/label/dev_10gen.result.npz')['S'][sub]
     S_f = np.load(x_f)['S']
     ids = [np.where(S_f==(i))[0][0] for i in S]
-    X_dev = np.load(x_f)['G'][ids,:,:]
+    X_dev = np.load(x_f)['G'][ids,:,:]#[:,ix1:ix2,:]
     S_f = np.load(y_f)['S']
     ids = [np.where(S_f==(i))[0][0] for i in S]
     # rfmix simulate has one-indexed labels, so the last slice is necessary
-    Y_dev = to_categorical(np.load(y_f)['L'][ids,:], dtype='bool')[:,:,1:] 
+    Y_dev = to_categorical(np.load(y_f)['L'][ids,:], dtype='bool')[:,:,1:]#[:,ix1:ix2,:] 
     print([X_dev.shape, Y_dev.shape])
     return X_dev, Y_dev, S_f[ids]
 
@@ -85,18 +93,22 @@ def filter_ac(X, ac=1):
 
 def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_epochs=100,
           dropout_rate=0.01, input_dropout_rate=0.01, batch_norm=False, filter_size=8, 
-          pool_size=4, num_blocks=5, num_filters=8):
+          pool_size=4, num_blocks=5, num_filters=8, var_start=0, num_var=int(1e9), 
+          bp_start=0, bp_end=int(1e9), array_only=False):
     ## Load data
-    X, Y, S, train_ix = load_train_set(chm=chrom)
-    X_dev, Y_dev, S_dev = load_dev_set(chm=chrom)
-    
+    X, Y, S, V, train_ix, v1, v2 = load_train_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
+    X_dev, Y_dev, S_dev = load_dev_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
     # filter variants, get counts of variants, alleles, ancestries
-    vs=filter_ac(X, ac=2)
-    #nv = X.shape[1] - (X.shape[1] % (pool_size**num_blocks)) # truncation by up to 1024 
+    vs=filter_ac(X[:,v1:v2,:], ac=2)
+    if array_only: # subset to MEGA variants
+        x=np.loadtxt('../positions_on_mega_array.txt.gz', delimiter=' ', dtype=str)
+        vs=vs & np.in1d(V[v1:v2,1], x[x[:,0]=='chr'+str(chrom),-1])
     nv = np.sum(vs) - (np.sum(vs) % (pool_size**num_blocks))
     na = X.shape[-1]
     nc = Y.shape[-1]
-    vs = np.array([i and s <= nv for i,s in zip(vs,np.cumsum(vs))]) # update truncation
+    vs = np.array([False for _ in range(v1-1)]+
+                  [i and s <= nv for i,s in zip(vs,np.cumsum(vs))]+
+                  [False for _ in range(v2,X.shape[1])]) # update truncation
     np.savetxt(out+'var_index.txt', np.arange(len(vs))[vs], fmt='%i')
     
     ## Create model, declare optimizer
@@ -115,16 +127,19 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     
     ## Train model 
     es = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=25)
+    wt = callbacks.ModelCheckpoint(out+".h5", monitor='val_loss', mode='min', 
+                                   save_freq=X.shape[0], verbose=1, save_best_only=True)
     if no_generator:
         history=model.fit(X[train_ix,:,:][:,vs,:][:,:,:na], Y[train_ix,:,:][:,vs,:], 
                           validation_data=(X_dev[:,vs,:na], Y_dev[:,vs,:]),
-                          batch_size=batch_size, epochs=num_epochs, callbacks=[es])
+                          batch_size=batch_size, epochs=num_epochs)#, callbacks=[es])
     else:
-        params={'X':X[:,vs,:], 'Y':Y[:,vs,:], 'dim':nv, 'batch_size':batch_size, 'n_classes':nc, 'n_alleles':na}
-        param2={'X':X_dev[:,vs,:], 'Y':Y_dev[:,vs,:], 'dim':nv, 'batch_size':batch_size, 'n_classes':nc, 'n_alleles':na}
-        train_gen=DataGenerator(train_ix, **params)
-        valid_gen=DataGenerator(np.arange(X_dev.shape[0]), **param2)
-        history=model.fit_generator(generator=train_gen, validation_data=valid_gen, 
+        params={'S':S, 'path':data_root+'/unzipped/split/chr20/', 'train_ix':train_ix, 
+                'var_ix':vs, 'batch_size':batch_size, 'n_alleles':na, 'n_classes':nc}
+        param2={'S':S_dev, 'path':data_root+'/unzipped/split/chr20/', 'train_ix':np.arange(S_dev.shape[0]), 
+                'var_ix':vs, 'batch_size':min(S_dev.shape[0], batch_size), 'n_alleles':na, 'n_classes':nc}
+        history=model.fit_generator(generator=DataLoader(**params), 
+                                    validation_data=DataLoader(**param2),
                                     epochs=num_epochs, callbacks=[es])
     ## Save model weights and return
     model.save_weights(out+'.h5')
@@ -187,11 +202,19 @@ def get_args():
                          help='Flag to use batch normalization')
     parser.add_argument('--no-generator', action='store_true',
                          help='Flag to not use generator object, and load all data into memory')
+    parser.add_argument('--array-only', action='store_true',
+                         help='Flag to only use variants on the Illumina MEGA Array')
     #parser.add_argument('--n-alleles', metavar='na', type=int, nargs=1, required=False,
     #                     default=2,
     #                     help='Number of input alleles to consider')
-    #parser.add_argument('--nvar', metavar='nv', type=int, nargs=1, required=True,
-    #                     help='Number of variants on chromosome to use (must be power of 2)')
+    parser.add_argument('--num-var', metavar='nv', type=int, required=False, default=int(1e9),
+                         help='Number of variants on chromosome to use (will be truncated to fit model specification)')
+    parser.add_argument('--var-start', metavar='vs', type=int, required=False, default=0,
+                         help='Index of variant to start training (i.e. data will be sliced from here to num-var beyond it)')
+    parser.add_argument('--bp-start', metavar='bp1', type=int, required=False, default=0,
+                         help='Starting base pair coordinate to subset input data')
+    parser.add_argument('--bp-end', metavar='bp2', type=int, required=False, default=int(1e9),
+                         help='Ending base pair coordinate to subset input data')
     #parser.add_argument('--multi-gpu', metavar='hor', action='store_true',
     #                     help='Flag to use horovod multi-gpu (also requires different script invocation)')
     parser.add_argument('--out', metavar='model_weights', type=str, required=True,
