@@ -3,10 +3,39 @@ import tensorflow.keras as keras
 import scipy.stats as ss
 from tensorflow.keras.utils import to_categorical
 
+class DataLoader(keras.utils.Sequence):
+	'Loads data for Keras'
+	def __init__(self, S, path, train_ix, batch_size, n_alleles, n_classes,
+	             var_ix, shuffle=True, admix=False):
+		self.samples=S
+		self.path=path
+		self.ids=S[train_ix]
+		self.n=batch_size
+		self.l=n_alleles
+		self.m=n_classes
+		self.var=var_ix
+		self.shuffle=shuffle
+		self.admix=admix 
+		self.on_epoch_end()
+	def __len__(self):
+		# number of batches per epoch
+		return len(self.ids) // self.n
+	def __getitem__(self, ix):
+		# get one batch of data
+		ss=self.ids[int(ix*self.n):int((ix+1)*self.n)]
+		Xs=np.stack([np.load(self.path+'/'+s+'.G.npy')[self.var,:self.l] for s in ss])
+		Ys=np.stack([np.load(self.path+'/'+s+'.L.npy')[self.var,:self.m] for s in ss])
+		return (Xs,Ys) if not self.admix else naive_admixing(Xs,Ys)
+	def on_epoch_end(self):
+		# shuffle ids at the end of an epoch (optionally)
+		if self.shuffle:
+			np.random.shuffle(self.ids)	
+	
+
 class DataGenerator(keras.utils.Sequence):
     'Generates data for Keras'
     def __init__(self, train_ix, batch_size, dim, n_alleles, n_classes, X, Y, 
-                 shuffle=True, admix=False):
+                 shuffle=True, admix=False, v1=0, v2=None):
         'Initialization'
         self.dim = dim
         self.batch_size = batch_size
@@ -20,6 +49,8 @@ class DataGenerator(keras.utils.Sequence):
         self.Y = Y
         self.admix = admix
         self.indexes = np.arange(self.list_IDs.shape[0])
+        self.v1 = v1
+        self.v2 = dim if v2 is None else v2
         self.on_epoch_end()
 
     def __len__(self):
@@ -43,8 +74,8 @@ class DataGenerator(keras.utils.Sequence):
     def __data_generation(self, list_IDs_temp):
         'Generates data containing batch_size samples' 
         # X : (n_samples, *dim, n_channels)
-        X_sm = self.X[list_IDs_temp, :self.dim, :self.n_alleles] 
-        y_sm = self.Y[list_IDs_temp, :self.dim, :]         
+        X_sm = self.X[list_IDs_temp, self.v1:self.v2, :self.n_alleles] 
+        y_sm = self.Y[list_IDs_temp, self.v1:self.v2, :]         
         if self.admix:
             return naive_admixing(X_sm, y_sm)
         else:
