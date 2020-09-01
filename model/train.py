@@ -94,7 +94,7 @@ def filter_ac(X, ac=1):
 def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_epochs=100,
           dropout_rate=0.01, input_dropout_rate=0.01, batch_norm=False, filter_size=8, 
           pool_size=4, num_blocks=5, num_filters=8, var_start=0, num_var=int(1e9), 
-          bp_start=0, bp_end=int(1e9), array_only=False):
+          bp_start=0, bp_end=int(1e9), array_only=False, continue_train=True):
     ## Load data
     X, Y, S, V, train_ix, v1, v2 = load_train_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
     X_dev, Y_dev, S_dev = load_dev_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
@@ -109,7 +109,7 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     vs = np.array([False for _ in range(v1-1)]+
                   [i and s <= nv for i,s in zip(vs,np.cumsum(vs))]+
                   [False for _ in range(v2,X.shape[1])]) # update truncation
-    np.savetxt(out+'var_index.txt', np.arange(len(vs))[vs], fmt='%i')
+    np.savetxt(out+'.var_index.txt', np.arange(len(vs))[vs], fmt='%i')
     
     ## Create model, declare optimizer
     os.system('echo "pre-model"; nvidia-smi')
@@ -124,15 +124,20 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     ## Compile model and summarize
     model.compile(optimizer=adam, loss='categorical_crossentropy', metrics=['accuracy']) 
     print(model.summary())    
-    
+   
+    if continue_train and os.path.exists(out+'.h5'):
+        model.load_weights(out+'.h5')
+     
     ## Train model 
     es = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=25)
     wt = callbacks.ModelCheckpoint(out+".h5", monitor='val_loss', mode='min', 
-                                   save_freq=X.shape[0], verbose=1, save_best_only=True)
+                                   save_freq='epoch', verbose=1, save_best_only=True)
+    lg = callbacks.CSVLogger(out+'.log.csv', separator=",", append=continue_train)
+    bb = np.genfromtxt('weights/chr20.array.53.log.csv', delimiter=',')[-1,0] # subtract off previous batches
     if no_generator:
         history=model.fit(X[train_ix,:,:][:,vs,:][:,:,:na], Y[train_ix,:,:][:,vs,:], 
                           validation_data=(X_dev[:,vs,:na], Y_dev[:,vs,:]),
-                          batch_size=batch_size, epochs=num_epochs)#, callbacks=[es])
+                          batch_size=batch_size, epochs=num_epochs - int(bb), callbacks=[es, wt, lg])
     else:
         params={'S':S, 'path':data_root+'/unzipped/split/chr20/', 'train_ix':train_ix, 
                 'var_ix':vs, 'batch_size':batch_size, 'n_alleles':na, 'n_classes':nc}
@@ -140,7 +145,7 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
                 'var_ix':vs, 'batch_size':min(S_dev.shape[0], batch_size), 'n_alleles':na, 'n_classes':nc}
         history=model.fit_generator(generator=DataLoader(**params), 
                                     validation_data=DataLoader(**param2),
-                                    epochs=num_epochs, callbacks=[es])
+                                    epochs=num_epochs - int(bb), callbacks=[es, wt, lg])
     ## Save model weights and return
     model.save_weights(out+'.h5')
     return history
@@ -165,13 +170,13 @@ def plot_info(history, out):
     plt.plot(history.history['accuracy'], label='train set')
     plt.plot(history.history['val_accuracy'], label='dev set')
     plt.legend()
-    plt.savefig(out+'info.png')
+    plt.savefig(out+'.info.png')
 
 
 def get_args():
     import argparse
     parser=argparse.ArgumentParser(description=_README)
-    parser.add_argument('--chrom', metavar='20', type=int, nargs=1, required=False,
+    parser.add_argument('--chrom', metavar='20', type=int, required=False,
                          default=20,
                          help='Chromosome to use (must be in 1,2,...,22)')
     parser.add_argument('--batch-size', metavar='4', type=int, required=False,
@@ -204,6 +209,8 @@ def get_args():
                          help='Flag to not use generator object, and load all data into memory')
     parser.add_argument('--array-only', action='store_true',
                          help='Flag to only use variants on the Illumina MEGA Array')
+    parser.add_argument('--continue-train', action='store_true',
+                         help='Flag to continue training from an existing model file')
     #parser.add_argument('--n-alleles', metavar='na', type=int, nargs=1, required=False,
     #                     default=2,
     #                     help='Number of input alleles to consider')
@@ -227,7 +234,7 @@ def get_args():
 def main():
     args=get_args()    
     # safety catch -- don't overwrite another model
-    if os.path.exists(args.out+'.h5'):
+    if os.path.exists(args.out+'.h5') and not args.continue_train:
         print(args.out+'.h5 object already found. Aborting!')
         exit(1)
     
