@@ -3,10 +3,12 @@
 #SBATCH -p gpu,owners
 #SBATCH --gpus=1 
 #SBATCH -C GPU_MEM:32GB
-#SBATCH -t 12:00:00
-#SBATCH --cpus-per-gpu=1
-#SBATCH --mem-per-gpu=32G
-#SBATCH --out logs/array_%A.out
+#SBATCH -t 2-00:00:00
+# #SBATCH --cpus-per-gpu=1
+# #SBATCH --mem-per-gpu=32G
+#SBATCH --out logs/array.hparam.%A.%a.out
+#SBATCH --array=54,55,56,57,59,60,68,69,70,71,72,74,75,76,77,78,79,80,81,82,83,84,85,86,87,89,90,91,92,93,94,95,96,97,98,99,100,101
+# #SBATCH --array=52-101 # for models with 5e4 to 5e5 params, index 52-127
 
 __README="""
 A wrapper script for train.py
@@ -30,10 +32,15 @@ else
   ml list
 fi
 
+id=${SLURM_ARRAY_TASK_ID:=20}
+fs="$( awk -v nr=$id '(NR==nr){print $1}' hparam_to_nparam.tsv )"
+nf="$( awk -v nr=$id '(NR==nr){print $2}' hparam_to_nparam.tsv )"
+nb="$( awk -v nr=$id '(NR==nr){print $4}' hparam_to_nparam.tsv )"
+
 
 # call the model training script
-python3 train.py --out chr20_array --array-only \
-  --filter-size=8 --num-filter=12 --num-blocks=4 --batch-size=128
+python3 train.py --out weights/chr20.array.${id} --array-only --chrom=20 \
+  --filter-size=$fs --num-filter=$nf --num-blocks=$nb --batch-size=2 --continue-train
 
  
 PARAMS="""
