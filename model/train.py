@@ -113,11 +113,13 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     
     ## Create model, declare optimizer
     os.system('echo "pre-model"; nvidia-smi')
-    model = segnet(input_shape=(nv,na), n_classes=nc, 
-                   width=filter_size, n_filters=num_filters, pool_size=pool_size, 
-                   n_blocks=num_blocks, dropout_rate=dropout_rate, 
-                   input_dropout_rate=input_dropout_rate, l2_lambda=1e-30, 
-                   batch_normalization=batch_norm)
+    mirrored_strategy = tf.distribute.MirroredStrategy()
+    with mirrored_strategy.scope():
+        model = segnet(input_shape=(nv,na), n_classes=nc, 
+                       width=filter_size, n_filters=num_filters, pool_size=pool_size, 
+                       n_blocks=num_blocks, dropout_rate=dropout_rate, 
+                       input_dropout_rate=input_dropout_rate, l2_lambda=1e-30, 
+                       batch_normalization=batch_norm)
     adam = optimizers.Adam(lr=1e-4)
     os.system('echo "post-compile"; nvidia-smi')
 

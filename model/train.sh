@@ -22,8 +22,8 @@ if [ $hn = "galangal.stanford.edu" ]; then
 else
   # if not then fiddle around with modules
   ml purge; 
-  ml load python/3.6.1 cuda/10.1.168 cudnn/7.4.1.5; # openmpi/4.0.3
-  ml load py-numpy/1.18.1_py36 py-scipy/1.4.1_py36 py-tensorflow/2.0.0_py36;
+  ml load python/3.6.1 cuda/10.2.89 cudnn/7.6.5; # openmpi/4.0.3
+  ml load py-numpy/1.18.1_py36 py-scipy/1.4.1_py36 py-tensorflow/2.1.0_py36;
   # display node info
   nvidia-smi --query-gpu=index,name --format=csv,noheader
   nvidia-smi
@@ -31,6 +31,7 @@ else
   which python3
   ml list
 fi
+
 
 id=${SLURM_ARRAY_TASK_ID:=20}
 fs="$( awk -v nr=$id '(NR==nr){print $1}' hparam_to_nparam.tsv )"
