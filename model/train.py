@@ -94,13 +94,15 @@ def filter_ac(X, ac=1):
 def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_epochs=100,
           dropout_rate=0.01, input_dropout_rate=0.01, batch_norm=False, filter_size=8, 
           pool_size=4, num_blocks=5, num_filters=8, var_start=0, num_var=int(1e9), 
-          bp_start=0, bp_end=int(1e9), array_only=False, continue_train=True):
+          bp_start=0, bp_end=int(1e9), array_only=False, continue_train=True, ivw=False,
+          random_train=False):
     ## Load data
     X, Y, S, V, train_ix, v1, v2 = load_train_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
     X_dev, Y_dev, S_dev = load_dev_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
     # filter variants, get counts of variants, alleles, ancestries
     vs=filter_ac(X[:,v1:v2,:], ac=2)
-    if array_only: # subset to MEGA variants
+    if array_only: 
+        # subset to MEGA variants
         x=np.loadtxt('../positions_on_mega_array.txt.gz', delimiter=' ', dtype=str)
         vs=vs & np.in1d(V[v1:v2,1], x[x[:,0]=='chr'+str(chrom),-1])
     nv = np.sum(vs) - (np.sum(vs) % (pool_size**num_blocks))
@@ -110,12 +112,19 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
                   [i and s <= nv for i,s in zip(vs,np.cumsum(vs))]+
                   [False for _ in range(v2,X.shape[1])]) # update truncation
     np.savetxt(out+'.var_index.txt', np.arange(len(vs))[vs], fmt='%i')
-    
+    # subset
+    anc=np.arange(nc) # ancestry indexes -- use this to remove OCE, WAS, NAT?
+    X=X[np.ix_(train_ix, vs, np.arange(na))]
+    Y=Y[np.ix_(train_ix, vs, anc)]
+    X_dev=X_dev[:,vs,:na]
+    Y_dev=Y_dev[np.ix_(np.arange(Y_dev.shape[0]), vs, anc)]
+     
     ## Create model, declare optimizer
     os.system('echo "pre-model"; nvidia-smi')
-    mirrored_strategy = tf.distribute.MirroredStrategy()
-    with mirrored_strategy.scope():
-        model = segnet(input_shape=(nv,na), n_classes=nc, 
+    #strategy = tf.distribute.experimental.CentralStorageStrategy()
+    #strategy = tf.distribute.MirroredStrategy()
+    #with strategy.scope():
+    model = segnet(input_shape=(nv,na), n_classes=nc, 
                        width=filter_size, n_filters=num_filters, pool_size=pool_size, 
                        n_blocks=num_blocks, dropout_rate=dropout_rate, 
                        input_dropout_rate=input_dropout_rate, l2_lambda=1e-30, 
@@ -127,27 +136,30 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     model.compile(optimizer=adam, loss='categorical_crossentropy', metrics=['accuracy']) 
     print(model.summary())    
    
-    if continue_train and os.path.exists(out+'.h5'):
+    if continue_train and os.path.exists(out+'.h5') and os.path.exists(out+'.log.csv'):
         model.load_weights(out+'.h5')
+        bb = np.genfromtxt(out+'.log.csv', delimiter=',')[-1,0] # subtract off previous batches
+    else:
+        bb = 0 # previous batches is zero
+
      
     ## Train model 
     es = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=25)
     wt = callbacks.ModelCheckpoint(out+".h5", monitor='val_loss', mode='min', 
                                    save_freq='epoch', verbose=1, save_best_only=True)
     lg = callbacks.CSVLogger(out+'.log.csv', separator=",", append=continue_train)
-    bb = np.genfromtxt('weights/chr20.array.53.log.csv', delimiter=',')[-1,0] # subtract off previous batches
+    cw = Y.sum()/Y.sum(axis=0).sum(axis=0) if ivw else np.ones((Y.shape[-1],))
     if no_generator:
-        history=model.fit(X[train_ix,:,:][:,vs,:][:,:,:na], Y[train_ix,:,:][:,vs,:], 
-                          validation_data=(X_dev[:,vs,:na], Y_dev[:,vs,:]),
-                          batch_size=batch_size, epochs=num_epochs - int(bb), callbacks=[es, wt, lg])
+        history=model.fit(X, Y, validation_data=(X_dev, Y_dev), batch_size=batch_size, 
+                          epochs=num_epochs - int(bb), callbacks=[es, wt, lg], class_weights=cw)
     else:
-        params={'S':S, 'path':data_root+'/unzipped/split/chr20/', 'train_ix':train_ix, 
-                'var_ix':vs, 'batch_size':batch_size, 'n_alleles':na, 'n_classes':nc}
-        param2={'S':S_dev, 'path':data_root+'/unzipped/split/chr20/', 'train_ix':np.arange(S_dev.shape[0]), 
-                'var_ix':vs, 'batch_size':min(S_dev.shape[0], batch_size), 'n_alleles':na, 'n_classes':nc}
-        history=model.fit_generator(generator=DataLoader(**params), 
-                                    validation_data=DataLoader(**param2),
-                                    epochs=num_epochs - int(bb), callbacks=[es, wt, lg])
+        params={'X':X, 'Y':Y, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':na}
+        param2={'X':X_dev, 'Y':Y_dev, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':na}
+        anc_fq=Y[:,0,:].sum(axis=0)
+        anc_wt=((1/anc_fq)/((1/anc_fq).sum())).flatten() if random_train else np.ones((Y.shape[-1],))
+        history=model.fit_generator(generator=DataGenerator(**params, sample=random_train, anc_wts=anc_wts), 
+                                    validation_data=DataGenerator(**param2),
+                                    epochs=num_epochs - int(bb), callbacks=[es, wt, lg], class_weights=cw)
     ## Save model weights and return
     model.save_weights(out+'.h5')
     return history
@@ -213,6 +225,10 @@ def get_args():
                          help='Flag to only use variants on the Illumina MEGA Array')
     parser.add_argument('--continue-train', action='store_true',
                          help='Flag to continue training from an existing model file')
+    parser.add_argument('--ivw', action='store_true', 
+                         help='Flag to weight classes by inverse frequency during training')
+    parser.add_argument('--random-batch', action='store_true', 
+                         help='Flag to take batch samples randomly (prop. to Y_label frequency)')
     #parser.add_argument('--n-alleles', metavar='na', type=int, nargs=1, required=False,
     #                     default=2,
     #                     help='Number of input alleles to consider')
