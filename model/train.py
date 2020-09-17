@@ -95,7 +95,7 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
           dropout_rate=0.01, input_dropout_rate=0.01, batch_norm=False, filter_size=8, 
           pool_size=4, num_blocks=5, num_filters=8, var_start=0, num_var=int(1e9), 
           bp_start=0, bp_end=int(1e9), array_only=False, continue_train=True, ivw=False,
-          random_train=False):
+          random_batch=False):
     ## Load data
     X, Y, S, V, train_ix, v1, v2 = load_train_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
     X_dev, Y_dev, S_dev = load_dev_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
