@@ -65,8 +65,8 @@ def load_train_set(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
 def load_dev_set(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
     global data_root
     # file paths
-    x_f = data_root+'simulated_chr'+str(chm)+'/numpy/dev_10gen.query.npz'
-    y_f = data_root+'simulated_chr'+str(chm)+'/label/dev_10gen.result.npz'
+    x_f = data_root+'simulated_chr'+str(chm)+'/numpy/dev_10gen.no_OCE_WAS.query.npz'
+    y_f = data_root+'simulated_chr'+str(chm)+'/label/dev_10gen.no_OCE_WAS.result.npz'
     # subset genetic data
     V = np.load(x_f)['V']
     ix1 = max(ix, min(np.where(V[:,1].astype(int)-bp1 >= 0)[0]))
@@ -107,17 +107,17 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
         vs=vs & np.in1d(V[v1:v2,1], x[x[:,0]=='chr'+str(chrom),-1])
     nv = np.sum(vs) - (np.sum(vs) % (pool_size**num_blocks))
     na = X.shape[-1]
-    nc = Y.shape[-1]
     vs = np.array([False for _ in range(v1-1)]+
                   [i and s <= nv for i,s in zip(vs,np.cumsum(vs))]+
                   [False for _ in range(v2,X.shape[1])]) # update truncation
     np.savetxt(out+'.var_index.txt', np.arange(len(vs))[vs], fmt='%i')
     # subset
-    anc=np.arange(nc) # ancestry indexes -- use this to remove OCE, WAS, NAT?
+    anc=np.array([0,1,2,3,5]) # ancestry indexes -- 4 is OCE, 6 is WAS
     X=X[np.ix_(train_ix, vs, np.arange(na))]
     Y=Y[np.ix_(train_ix, vs, anc)]
     X_dev=X_dev[:,vs,:na]
     Y_dev=Y_dev[np.ix_(np.arange(Y_dev.shape[0]), vs, anc)]
+    nc = Y.shape[-1]
      
     ## Create model, declare optimizer
     os.system('echo "pre-model"; nvidia-smi')
@@ -151,7 +151,7 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     cw = Y.sum()/Y.sum(axis=0).sum(axis=0) if ivw else np.ones((Y.shape[-1],))
     if no_generator:
         history=model.fit(X, Y, validation_data=(X_dev, Y_dev), batch_size=batch_size, 
-                          epochs=num_epochs - int(bb), callbacks=[es, wt, lg], class_weights=cw)
+                          epochs=num_epochs - int(bb), callbacks=[es, wt, lg], class_weight=cw)
     else:
         params={'X':X, 'Y':Y, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':na}
         param2={'X':X_dev, 'Y':Y_dev, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':na}
@@ -159,7 +159,7 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
         anc_wt=((1/anc_fq)/((1/anc_fq).sum())).flatten() if random_train else np.ones((Y.shape[-1],))
         history=model.fit_generator(generator=DataGenerator(**params, sample=random_train, anc_wts=anc_wts), 
                                     validation_data=DataGenerator(**param2),
-                                    epochs=num_epochs - int(bb), callbacks=[es, wt, lg], class_weights=cw)
+                                    epochs=num_epochs - int(bb), callbacks=[es, wt, lg], class_weight=cw)
     ## Save model weights and return
     model.save_weights(out+'.h5')
     return history
