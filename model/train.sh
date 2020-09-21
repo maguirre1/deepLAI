@@ -4,10 +4,10 @@
 #SBATCH --gpus=1 
 #SBATCH -C GPU_MEM:32GB
 #SBATCH -t 2-00:00:00
-# #SBATCH --cpus-per-gpu=1
-# #SBATCH --mem-per-gpu=32G
+#SBATCH --cpus-per-gpu=1
+#SBATCH --mem-per-gpu=32G
 #SBATCH --out logs/array.hparam.%A.%a.out
-#SBATCH --array=54,55,56,57,59,60,68,69,70,71,72,74,75,76,77,78,79,80,81,82,83,84,85,86,87,89,90,91,92,93,94,95,96,97,98,99,100,101
+# #SBATCH --array=93-180 # for models with 2e5 to 2e6 parameters
 # #SBATCH --array=52-101 # for models with 5e4 to 5e5 params, index 52-127
 
 __README="""
@@ -24,10 +24,8 @@ else
   ml purge; 
   ml load python/3.6.1 cuda/10.2.89 cudnn/7.6.5; # openmpi/4.0.3
   ml load py-numpy/1.18.1_py36 py-scipy/1.4.1_py36 py-tensorflow/2.1.0_py36;
-  # display node info
+  # display node info and packages
   nvidia-smi --query-gpu=index,name --format=csv,noheader
-  nvidia-smi
-  # display packages
   which python3
   ml list
 fi
@@ -39,9 +37,10 @@ nf="$( awk -v nr=$id '(NR==nr){print $2}' hparam_to_nparam.tsv )"
 nb="$( awk -v nr=$id '(NR==nr){print $4}' hparam_to_nparam.tsv )"
 
 
+mkdir -p weights
 # call the model training script
-python3 train.py --out weights/chr20.array.${id} --array-only --chrom=20 \
-  --filter-size=$fs --num-filter=$nf --num-blocks=$nb --batch-size=2 --continue-train
+python3 train.py --out weights/chr20.full.${id} --chrom=20 --num-epochs=200 \
+  --filter-size=$fs --num-filter=$nf --num-blocks=$nb --batch-size=4 --continue-train
 
  
 PARAMS="""
