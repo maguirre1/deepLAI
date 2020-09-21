@@ -116,7 +116,7 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     X=X[np.ix_(train_ix, vs, np.arange(na))]
     Y=Y[np.ix_(train_ix, vs, anc)]
     X_dev=X_dev[:,vs,:na]
-    Y_dev=Y_dev[np.ix_(np.arange(Y_dev.shape[0]), vs, anc)]
+    Y_dev=Y_dev[np.ix_(np.arange(Y_dev.shape[0]), vs, np.arange(anc.shape[0]))]
     nc = Y.shape[-1]
      
     ## Create model, declare optimizer
