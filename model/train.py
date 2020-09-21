@@ -73,7 +73,7 @@ def load_dev_set(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
     ix2 = min(V.shape[0], min(ix+count, max(np.where(V[:,1].astype(int)-bp2 <= 0)[0])))
     # load genetic data, then labels, making sure the sample ordering is the same
     sub=np.random.choice(np.arange(200), 120, replace=False) 
-    S = np.load(data_root+'simulated_chr'+str(chm)+'/label/dev_10gen.result.npz')['S'][sub]
+    S = np.load(data_root+'simulated_chr'+str(chm)+'/label/dev_10gen.no_OCE_WAS.result.npz')['S'][sub]
     S_f = np.load(x_f)['S']
     ids = [np.where(S_f==(i))[0][0] for i in S]
     X_dev = np.load(x_f)['G'][ids,:,:]#[:,ix1:ix2,:]
