@@ -139,12 +139,13 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     if continue_train and os.path.exists(out+'.h5') and os.path.exists(out+'.log.csv'):
         model.load_weights(out+'.h5')
         bb = np.genfromtxt(out+'.log.csv', delimiter=',')[-1,0] # subtract off previous batches
+        print("continuing training from batch {}...".format(bb))
     else:
         bb = 0 # previous batches is zero
 
      
     ## Train model 
-    es = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=25)
+    es = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=10)
     wt = callbacks.ModelCheckpoint(out+".h5", monitor='val_loss', mode='min', 
                                    save_freq='epoch', verbose=1, save_best_only=True)
     lg = callbacks.CSVLogger(out+'.log.csv', separator=",", append=continue_train)
