@@ -155,11 +155,13 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
                           epochs=num_epochs - int(bb), callbacks=[es, wt, lg], class_weight=cw)
     else:
         bs=num_epochs - int(bb)
-        params={'X':X, 'Y':Y, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':na}
-        param2={'X':X_dev, 'Y':Y_dev, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':na}
+        params={'X':X, 'Y':Y, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':anc.shape[0], 
+                'train_ix':np.arange(X.shape[0])}
+        param2={'X':X_dev, 'Y':Y_dev, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':anc.shape[0],
+                'train_ix':np.arange(X_dev.shape[0])}
         anc_fq=Y[:,0,:].sum(axis=0)
-        anc_wt=((1/anc_fq)/((1/anc_fq).sum())).flatten() if random_train else np.ones((Y.shape[-1],))
-        history=model.fit_generator(generator=DataGenerator(**params, sample=random_train, anc_wts=anc_wts), 
+        anc_wt=((1/anc_fq)/((1/anc_fq).sum())).flatten() if random_batch else np.ones((Y.shape[-1],))
+        history=model.fit_generator(generator=DataGenerator(**params, sample=random_batch, anc_wts=anc_wt), 
                                     validation_data=DataGenerator(**param2),
                                     epochs=num_epochs - int(bb), callbacks=[es, wt, lg], class_weight=cw)
     ## Save model weights and return
