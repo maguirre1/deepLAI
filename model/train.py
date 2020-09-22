@@ -154,6 +154,7 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
         history=model.fit(X, Y, validation_data=(X_dev, Y_dev), batch_size=batch_size, 
                           epochs=num_epochs - int(bb), callbacks=[es, wt, lg], class_weight=cw)
     else:
+        bs=num_epochs - int(bb)
         params={'X':X, 'Y':Y, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':na}
         param2={'X':X_dev, 'Y':Y_dev, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':na}
         anc_fq=Y[:,0,:].sum(axis=0)
