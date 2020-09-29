@@ -20,11 +20,13 @@ fi
 
 
 # these are fixed
-traing="/home/magu/deepmix/data/ALL_DNA_dataset/chm21.train.vcf"
-labels="/home/magu/deepmix/data/ALL_DNA_dataset/chm21.train.superpop.txt"
-#traing="/home/magu/deepmix/data/ALL_DNA_dataset/vcfs/chm21_ALL_X.train.downsample.200.recode.vcf"
-#labels="/home/magu/deepmix/data/ALL_DNA_dataset/vcfs/chm21_ALL_X.train.subsample200.map.tsv"
-ref_ld="../admixture_sim/hapmap-phase2-recombination-map-21.tsv"
+if [ $hn = "galangal.stanford.edu" ]; then 
+	traing="/home/magu/deepmix/data/vcf/panel_chr20.no-OCE-WAS.vcf.gz"
+else
+	traing="/scratch/users/magu/deepmix/data/vcf/panel_chr20.no-OCE-WAS.vcf.gz"
+fi
+labels="../data/reference-panel/split/train.superpop.sorted.txt"
+ref_ld="../data/admixture-sim/hapmap-phase2-genetic-map.tsv.gz"
 
 
 # sanity check:
@@ -42,5 +44,6 @@ rfmix -f $in_vcf -r $traing -m $labels -g $ref_ld -o $output
 
 
 # do rfmix!
-rfmix -f $in_vcf -r $traing -m $labels -g $ref_ld -o $output \
-      --n-threads=12 --chromosome=21
+~/miniconda3/envs/popgen/bin/rfmix -f $in_vcf -r $traing -m $labels \
+      -g <( zcat $ref_ld | awk '$1==20') \
+      -o $output --n-threads=12 --chromosome=20
