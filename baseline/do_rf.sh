@@ -24,7 +24,9 @@ if [ $(hostname) = "galangal.stanford.edu" ]; then
 	traing="/home/magu/deepmix/data/reference_panel/vcf/panel_chr20.no-OCE-WAS.vcf.gz"
 else
 	traing="/scratch/users/magu/deepmix/data/vcf/panel_chr20.no-OCE-WAS.vcf.gz"
-	alias rfmix "~/miniconda3/envs/popgen/bin/rfmix"
+	if ! command -v rfmix &> /dev/null; then 
+		export PATH="${PATH}:/home/users/magu/miniconda3/envs/popgen/bin/"
+	fi
 fi
 labels="../data/reference-panel/split/train.superpop.sorted.txt"
 ref_ld="../data/admixture-sim/hapmap-phase2-genetic-map.tsv.gz"
@@ -45,5 +47,5 @@ rfmix -f $in_vcf -r $traing -m $labels -g $ref_ld -o $output
 
 
 # do rfmix!
-rfmix -f $in_vcf -r $traing -m $labels -g <( zcat $ref_ld | awk '$1==20') \
+rfmix -f $in_vcf -r $traing -m $labels -g <(zcat $ref_ld | awk '$1==20') \
       -o $output --n-threads=12 --chromosome=20
