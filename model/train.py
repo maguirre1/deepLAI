@@ -149,7 +149,7 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     wt = callbacks.ModelCheckpoint(out+".h5", monitor='val_loss', mode='min', 
                                    save_freq='epoch', verbose=1, save_best_only=True)
     lg = callbacks.CSVLogger(out+'.log.csv', separator=",", append=continue_train)
-    cw = Y.sum()/Y.sum(axis=0).sum(axis=0) if ivw else np.ones((Y.shape[-1],))
+    cw = np.sqrt(1/Y.sum(axis=0).sum(axis=0)) if ivw else np.ones((Y.shape[-1],))
     if no_generator:
         history=model.fit(X, Y, validation_data=(X_dev, Y_dev), batch_size=batch_size, 
                           epochs=num_epochs - int(bb), callbacks=[es, wt, lg], class_weight=cw)
