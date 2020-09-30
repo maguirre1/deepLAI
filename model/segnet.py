@@ -13,7 +13,7 @@ import tensorflow.keras.backend as K
 # define model class
 def segnet(input_shape, n_classes, width=16, n_filters=16, dropout_rate=0.01, 
            input_dropout_rate=0.01, pool_size=4, l2_lambda=1e-30, n_blocks=5, 
-           batch_normalization=False):
+           batch_normalization=False, crf=None):
     # starting input and dropout
     X_input=Input(shape=input_shape)
     X=Dropout(input_dropout_rate)(X_input)
@@ -55,6 +55,11 @@ def segnet(input_shape, n_classes, width=16, n_filters=16, dropout_rate=0.01,
             
     # output layer
     Y=Dense(n_classes, activation='softmax', name='output_layer')(X)
+    if crf is not None: 
+        # this is a passed tf2CRF object 
+        # - must have loss=crf.loss, metrics=[crf.accuracy] (or similar)
+        #   at compile-time (train.py or sandbox.ipynb)
+        Y=crf(Y)
     
     # do it
     return Model(inputs=X_input, outputs=Y, name='segnet')
