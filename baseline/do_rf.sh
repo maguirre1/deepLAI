@@ -1,4 +1,9 @@
 #!/bin/bash
+#SBATCH -J rfmix
+#SBATCH --mem=64G
+#SBATCH -p normal,owners
+#SBATCH -t 2-00:00:00
+#SBATCH -o rfmix.baseline.%A.out
 
 
 # handle input
@@ -28,7 +33,7 @@ else
 		export PATH="${PATH}:/home/users/magu/miniconda3/envs/popgen/bin/"
 	fi
 fi
-labels="../data/reference-panel/split/train.superpop.sorted.txt"
+labels="../data/reference-panel/split/train.superpop.rfmix.txt"
 ref_ld="../data/admixture-sim/hapmap-phase2-genetic-map.tsv.gz"
 
 
