@@ -2,12 +2,12 @@
 #SBATCH -J segnet
 #SBATCH -p gpu,owners
 #SBATCH --gpus=1 
-#SBATCH -C GPU_MEM:32GB 
-#SBATCH -t 2-00:00:00
+# #SBATCH -C GPU_MEM:32GB 
+#SBATCH -t 12:00:00
 #SBATCH --cpus-per-gpu=1
 #SBATCH --mem-per-gpu=32G
-#SBATCH --out logs/full.hparam.v2.ivw.%A.%a.out
-#SBATCH --array=161
+#SBATCH --out logs/full.hparam.v2.admix.%A.%a.out
+#SBATCH --array=141-160,162-165,167-180
 # #SBATCH --array=141-180 # for models with 2e5 to 2e6 parameters, index 93-180
 # #SBATCH --array=52-101 # for models with 5e4 to 5e5 params, index 52-127
 
@@ -40,8 +40,9 @@ nb="$( awk -v nr=$id '(NR==nr){print $4}' hparam_to_nparam.tsv )"
 
 mkdir -p weights
 # call the model training script
-python3 train.py --out weights/chr20.full.${id}.v2.ivw --chrom=20 --num-epochs=302 --ivw \
-  --filter-size=$fs --num-filter=$nf --num-blocks=$nb --batch-size=8 --continue-train --no-generator
+python3 train.py --out weights/chr20.full.${id}.v2.admix --chrom=20 --num-epochs=302 \
+  --filter-size=$fs --num-filter=$nf --num-blocks=$nb --batch-size=8 --continue-train \
+  --admix --no-generator
 
  
 PARAMS="""
