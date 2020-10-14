@@ -6,7 +6,9 @@
 #SBATCH -t 2-00:00:00
 #SBATCH --cpus-per-gpu=1
 #SBATCH --mem-per-gpu=32G
-#SBATCH --out logs/array.hparam.%A.%a.out
+#SBATCH --out logs/full.hparam.%A.%a.out
+#SBATCH --array=108-135
+# #SBATCH --array=161,166,171,141,153,158,169,175,168,163,155,145
 # #SBATCH --array=93-180 # for models with 2e5 to 2e6 parameters
 # #SBATCH --array=52-101 # for models with 5e4 to 5e5 params, index 52-127
 
@@ -39,7 +41,7 @@ nb="$( awk -v nr=$id '(NR==nr){print $4}' hparam_to_nparam.tsv )"
 
 mkdir -p weights
 # call the model training script
-python3 train.py --out weights/chr20.full.${id} --chrom=20 --num-epochs=200 \
+python3 train.py --out weights/chr20.full.working.${id} --chrom=20 --num-epochs=200 \
   --filter-size=$fs --num-filter=$nf --num-blocks=$nb --batch-size=4 --continue-train
 
  
