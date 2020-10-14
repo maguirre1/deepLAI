@@ -2,6 +2,9 @@
 import os,sys
 import numpy as np
 import tensorflow as tf
+#from keras import optimizers, callbacks, regularizers
+#from keras.models import Model
+#from keras.utils import to_categorical
 from tensorflow.keras import optimizers, callbacks, regularizers
 from tensorflow.keras.models import Model
 from tensorflow.keras.utils import to_categorical
@@ -54,12 +57,26 @@ def load_train_set(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
     Y = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.L.npy', mmap_mode='r')#[:,ix1:ix2,:]
     S = np.load(data_root+'unzipped/panel_chr'+str(chm)+'.S.npy')
     # and indexes
-    train=np.loadtxt('../data/reference-panel/split/train.strands.txt', dtype=str)
+    train=np.loadtxt('../data/reference-panel/split/train.strands.no-oce-was.txt', dtype=str)
     train_ix=[i for i,q in enumerate(S) if q in train]
     np.random.shuffle(train_ix)
     print([X.shape, Y.shape, S.shape, len(train_ix)])
     return X, Y, S, V, train_ix, ix1, ix2
 
+def load_train_set_admix(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
+    global data_root
+    # subset variants
+    V = np.load(data_root+'simulated_chr20/numpy/train_10gen.no-OCE-WAS.big.npz')['V']
+    ix1 = max(ix, min(np.where(V[:,1].astype(int)-bp1 >= 0)[0]))
+    ix2 = min(V.shape[0]+1, min(ix+count, max(np.where(V[:,1].astype(int)-bp2 <= 0)[0])))
+    # load train data
+    X = np.load(data_root+'simulated_chr20/numpy/train_10gen.no-OCE-WAS.big.G.npy', mmap_mode='r')
+    S = np.load(data_root+'simulated_chr20/numpy/train_10gen.no-OCE-WAS.big.npz')['S']
+    Y = np.load(data_root+'simulated_chr20/label/train_10gen.no-OCE-WAS.big.L.npy', mmap_mode='r')
+    train_ix=np.arange(X.shape[0])
+    np.random.shuffle(train_ix)
+    print([X.shape, Y.shape, S.shape, len(train_ix)])
+    return X, Y, S, V, train_ix, ix1, ix2
 
 
 def load_dev_set(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
@@ -72,7 +89,7 @@ def load_dev_set(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
     ix1 = max(ix, min(np.where(V[:,1].astype(int)-bp1 >= 0)[0]))
     ix2 = min(V.shape[0], min(ix+count, max(np.where(V[:,1].astype(int)-bp2 <= 0)[0])))
     # load genetic data, then labels, making sure the sample ordering is the same
-    sub=np.random.choice(np.arange(200), 120, replace=False) 
+    sub=np.random.choice(np.arange(200), 200, replace=False) 
     S = np.load(data_root+'simulated_chr'+str(chm)+'/label/dev_10gen.no_OCE_WAS.result.npz')['S'][sub]
     S_f = np.load(x_f)['S']
     ids = [np.where(S_f==(i))[0][0] for i in S]
@@ -80,6 +97,8 @@ def load_dev_set(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
     S_f = np.load(y_f)['S']
     ids = [np.where(S_f==(i))[0][0] for i in S]
     # rfmix simulate has one-indexed labels, so the last slice is necessary
+    #Y_tmp = np.load(y_f, mmap_mode='r')['L'][ids,:]
+    #Y_dev = np.dstack([Y_tmp==i for i in range(1,Y_tmp.shape[-1]+1)])
     Y_dev = to_categorical(np.load(y_f)['L'][ids,:], dtype='bool')[:,:,1:]#[:,ix1:ix2,:] 
     print([X_dev.shape, Y_dev.shape])
     return X_dev, Y_dev, S_f[ids]
@@ -95,12 +114,15 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
           dropout_rate=0.01, input_dropout_rate=0.01, batch_norm=False, filter_size=8, 
           pool_size=4, num_blocks=5, num_filters=8, var_start=0, num_var=int(1e9), 
           bp_start=0, bp_end=int(1e9), array_only=False, continue_train=True, ivw=False,
-          random_batch=False):
+          random_batch=False, admix=False):
     ## Load data
-    X, Y, S, V, train_ix, v1, v2 = load_train_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
+    if admix and no_generator: # precomputed admixture rather than generated on the fly
+        X, Y, S, V, train_ix, v1, v2 = load_train_set_admix(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
+    else:
+        X, Y, S, V, train_ix, v1, v2 = load_train_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
     X_dev, Y_dev, S_dev = load_dev_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
     # filter variants, get counts of variants, alleles, ancestries
-    vs=filter_ac(X[:,v1:v2,:], ac=2)
+    vs=filter_ac(X[:,v1:v2,:], ac=1)
     if array_only: 
         # subset to MEGA variants
         x=np.loadtxt('../positions_on_mega_array.txt.gz', delimiter=' ', dtype=str)
@@ -110,9 +132,14 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     vs = np.array([False for _ in range(v1-1)]+
                   [i and s <= nv for i,s in zip(vs,np.cumsum(vs))]+
                   [False for _ in range(v2,X.shape[1])]) # update truncation
-    np.savetxt(out+'.var_index.txt', np.arange(len(vs))[vs], fmt='%i')
+    if os.path.exists(out+'.var_index.txt'):
+        vs=np.genfromtxt(out+'.var_index.txt', dtype=int)
+        nv=vs.shape[0]
+    else:
+        np.savetxt(out+'.var_index.txt', np.arange(len(vs))[vs], fmt='%i')
+    
     # subset
-    anc=np.array([0,1,2,3,5]) # ancestry indexes -- 4 is OCE, 6 is WAS
+    anc=np.arange(5) if admix and no_generator else np.array([0,1,2,3,5]) # ancestry indexes -- 4 is OCE, 6 is WAS
     X=X[np.ix_(train_ix, vs, np.arange(na))]
     Y=Y[np.ix_(train_ix, vs, anc)]
     X_dev=X_dev[:,vs,:na]
@@ -147,21 +174,20 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
     ## Train model 
     es = callbacks.EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=10)
     wt = callbacks.ModelCheckpoint(out+".h5", monitor='val_loss', mode='min', 
-                                   save_freq='epoch', verbose=1, save_best_only=True)
+                                   verbose=1, save_best_only=True)
     lg = callbacks.CSVLogger(out+'.log.csv', separator=",", append=continue_train)
     cw = np.sqrt(1/Y.sum(axis=0).sum(axis=0)) if ivw else np.ones((Y.shape[-1],))
     if no_generator:
         history=model.fit(X, Y, validation_data=(X_dev, Y_dev), batch_size=batch_size, 
                           epochs=num_epochs - int(bb), callbacks=[es, wt, lg], class_weight=cw)
     else:
-        bs=num_epochs - int(bb)
-        params={'X':X, 'Y':Y, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':anc.shape[0], 
+        params={'X':X, 'Y':Y, 'dim':nv, 'batch_size':batch_size, 'n_classes':nc, 'n_alleles':anc.shape[0], 
                 'train_ix':np.arange(X.shape[0])}
-        param2={'X':X_dev, 'Y':Y_dev, 'dim':nv, 'batch_size':bs, 'n_classes':nc, 'n_alleles':anc.shape[0],
+        param2={'X':X_dev, 'Y':Y_dev, 'dim':nv, 'batch_size':batch_size, 'n_classes':nc, 'n_alleles':anc.shape[0],
                 'train_ix':np.arange(X_dev.shape[0])}
         anc_fq=Y[:,0,:].sum(axis=0)
         anc_wt=((1/anc_fq)/((1/anc_fq).sum())).flatten() if random_batch else np.ones((Y.shape[-1],))
-        history=model.fit_generator(generator=DataGenerator(**params, sample=random_batch, anc_wts=anc_wt), 
+        history=model.fit_generator(generator=DataGenerator(**params, sample=random_batch, anc_wts=anc_wt, admix=admix), 
                                     validation_data=DataGenerator(**param2),
                                     epochs=num_epochs - int(bb), callbacks=[es, wt, lg], class_weight=cw)
     ## Save model weights and return
@@ -231,6 +257,7 @@ def get_args():
                          help='Flag to continue training from an existing model file')
     parser.add_argument('--ivw', action='store_true', 
                          help='Flag to weight classes by inverse frequency during training')
+    parser.add_argument('--admix', action='store_true', help='Flag to use admixed individuals during training')
     parser.add_argument('--random-batch', action='store_true', 
                          help='Flag to take batch samples randomly (prop. to Y_label frequency)')
     #parser.add_argument('--n-alleles', metavar='na', type=int, nargs=1, required=False,
@@ -322,6 +349,5 @@ save('X_dev_chm21all.npy', X_dev)
 
 # In[ ]:
 """
-
 
 
