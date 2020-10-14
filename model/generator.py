@@ -3,6 +3,8 @@ import tensorflow as tf
 from tensorflow import keras
 import scipy.stats as ss
 from tensorflow.keras.utils import to_categorical
+#import keras
+#from keras.utils import to_categorical
 
 class DataLoader(keras.utils.Sequence):
 	'Loads data for Keras'
@@ -36,7 +38,8 @@ class DataLoader(keras.utils.Sequence):
 class DataGenerator(keras.utils.Sequence):
     'Generates data for Keras'
     def __init__(self, train_ix, batch_size, dim, n_alleles, n_classes, X, Y, 
-                 shuffle=True, sample=False, admix=False, v1=0, v2=None, anc_wts=None):
+                 shuffle=True, sample=False, admix=False, v1=0, v2=None, anc_wts=None,
+                 ref=(None,None), ac=False):
         'Initialization'
         self.dim = dim
         self.batch_size = batch_size
@@ -48,13 +51,22 @@ class DataGenerator(keras.utils.Sequence):
         self.shuffle = shuffle
         self.X = X
         self.Y = Y
+        self.Xr = X if ref[0] is None else ref[0]
+        self.Yr = Y if ref[1] is None else ref[1]
+        self.ac = ac
+        if self.ac:
+            self.P = np.zeros([self.X.shape[1], self.n_alleles, self.n_classes])
+            for i in range(self.n_classes):
+                anc=self.Yr[:,0,:].dot(np.arange(self.Yr.shape[-1])) == i
+                for j in range(self.n_alleles):
+                    self.P[:,j,i]=self.Xr[anc,:,j].sum(axis=0)/max(1, float(np.sum(anc)))
         self.admix = admix
         self.indexes = np.arange(self.list_IDs.shape[0])
         self.v1 = v1
         self.v2 = dim if v2 is None else v2
         self.sample = sample
-        self.a_prob = np.arange(n_classes)/float(n_classes) if anc_wts is None else anc_wts
-        self.y_prob = np.array([self.a_prob[np.where(Y[i,0,:n_classes])[0][0]] for i in range(Y.shape[0])])
+        self.a_prob = np.arange(n_classes)/float(n_classes) if anc_wts is None else anc_wts/np.sum(anc_wts)
+        self.y_prob = np.array([self.a_prob[np.where(Y[i,0,:n_classes])[0][0]] for i in range(Y.shape[0]) if np.any(Y[i,0,:n_classes])])
         self.y_prob /= np.sum(self.y_prob)
         self.on_epoch_end()
 
@@ -86,6 +98,8 @@ class DataGenerator(keras.utils.Sequence):
         y_sm = self.Y[ids, self.v1:self.v2, :]         
         if self.admix:
             return naive_admixing(X_sm, y_sm)
+        elif self.ac:
+            return np.stack([self.P[X_sm[i,:,:]] for i in range(X_sm.shape[0])]), y_sm
         else:
             return X_sm, y_sm
 
