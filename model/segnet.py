@@ -32,7 +32,7 @@ def segnet(input_shape, n_classes, width=16, n_filters=16, dropout_rate=0.01,
     for i in range(n_blocks):
         # double convolutional block for each step  
         #  - this varied with i in the old model (2,2,3,3,3)
-        for j in range(2):
+        for j in range(2 + int(i>1)):
             # Defaults are activation=None and stride=1
             X=Conv1D(filters=n_filters*(2**i), kernel_size=width, 
                      padding='same', kernel_initializer='he_normal', 
@@ -52,7 +52,7 @@ def segnet(input_shape, n_classes, width=16, n_filters=16, dropout_rate=0.01,
         # link up with previous filters, expand back up
         X=concatenate([pools[i], X], axis = -1)
         X=UpSampling1D(size=pool_size, name='up'+str(i))(X)
-        for j in range(2): 
+        for j in range(2 + int(i>1)): 
             X=Conv1D(filters=n_filters*(2**i), kernel_size=width,
                      padding='same', kernel_initializer='he_normal', 
                      activity_regularizer=regularizers.l2(l2_lambda),
