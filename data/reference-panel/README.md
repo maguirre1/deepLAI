@@ -10,15 +10,7 @@ We start with two files consisting of genotypes from individuals in 1000 Genomes
  - Fourth, to deduplicate samples
  - Fifth, to identify population structure using ADMIXTURE
 
-Resulting population assignments, as well as sample info, are in the `reference_panel_metadata_w_qs.tsv` file in this folder. Relatedness information from 1KG is in the file `20130606_g1k.ped.txt`, and is considered when splitting the panel into train, dev, and test sets (see below). Genotype data for the entire panel and non-admixed subset can be found here, on Sherlock:
-
-```
-# Entire panel (n=3558) -- positions in hg38 for both files
-/oak/stanford/groups/mrivas/public_data/ref_1kg_hgdp_sgdp/beagle_1kg_hgdp_sgdp_ref_panel.vcf.gz
-
-# Non-admixed set (n=1382)
-/oak/stanford/groups/mrivas/public_data/ref_1kg_hgdp_sgdp/beagle_1kg_hgdp_sgdp_ref_panel_pure_aug.vcf.gz 
-```
+Resulting population assignments, as well as sample info, are in the `reference_panel_metadata_w_qs.tsv` file in this folder. Relatedness information from 1KG is in the file `20130606_g1k.ped.txt`, and is considered when splitting the panel into train, dev, and test sets (see below). 
 
 
 
@@ -29,8 +21,6 @@ Scripts:
 1. `convert.sh`. A wrapper script which calls `vcf_to_numpy.py` (below) for each chromosome to prepare the reference panel (above) for input into the [segnet model](https://github.com/maguirre1/deepLAI/tree/master/model).
 
 2. `vcf_to_numpy.py` converts phased sample genotypes in variant call format (VCF -- [specification here](https://samtools.github.io/hts-specs/VCFv4.2.pdf)) to a numpy genotype file, for use in deep learning models. See below for details on the specification of this file.
-
-3. `vcf_to_this_numpy.py`. Coming soon!!
 
 
 #### Specification for numpy genotype file
@@ -48,5 +38,7 @@ Prior to use in neural net models for LAI, genomes are processed into compressed
 
 Scripts: `filter_and_split.ipynb`. This jupyter notebook performs quality control: first, removing populations that are too small for learning (e.g. "African Hunter Gatherer" -- AHG); and second, ensuring that no familially related individuals are retained. It splits the resulting dataset (`n=1,345`) into training (`n=1,045`), dev (`n=100`), and test (`n=200`) sets. 
 
-Lists of sample IDs for the train/dev/test sets are in the `split` subdirectory. For each population (e.g. `dev`) there are three files: (1) `dev.txt`, which containts sample IDs (2) `dev.superpop.txt`, which contains superpopulation labels (e.g. `EUR`) and sample IDs, and (3) `dev.strands.txt`, which contains "stranded" sample IDs (e.g. `NA12878_S1`).
+Lists of sample IDs for the train/dev/test sets are in the `split` subdirectory. For each population (e.g. `dev`) there are three files: (1) `dev.txt`, which containts sample IDs (2) `dev.superpop.txt`, which contains superpopulation labels (e.g. `EUR`) and sample IDs, and (3) `dev.strands.txt`, which contains "stranded" sample IDs (e.g. `NA12878_S1`). 
+
+Extra subsets and transformations of sample lists have been made for a few different purposes (e.g. sorting individuals by population code, to standardize RFMix simulate results to a predicable output). We hope these files have been names in a similarly self-explanatory way.
 
