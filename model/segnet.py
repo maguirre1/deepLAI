@@ -1,13 +1,5 @@
 #!/usr/bin/env python
 import tensorflow as tf
-#import keras
-#from keras import regularizers
-#from keras.layers import Input, Dense, Activation, BatchNormalization, Conv1D
-#from keras.layers import concatenate, MaxPooling1D, UpSampling1D, Dropout
-#from keras.activations import softmax
-#from keras.models import Model
-#from keras.utils import to_categorical
-#import keras.backend as K
 from tensorflow import keras
 from tensorflow.keras import regularizers
 from tensorflow.keras.layers import Input, Dense, Activation, BatchNormalization, Conv1D
@@ -16,7 +8,6 @@ from tensorflow.keras.activations import softmax
 from tensorflow.keras.models import Model
 from tensorflow.keras.utils import to_categorical
 import tensorflow.keras.backend as K
-#from keras_contrib.layers import CRF
 
 
 # define model class
@@ -31,7 +22,6 @@ def segnet(input_shape, n_classes, width=16, n_filters=16, dropout_rate=0.01,
     pools=[]
     for i in range(n_blocks):
         # double convolutional block for each step  
-        #  - this varied with i in the old model (2,2,3,3,3)
         for j in range(2 + int(i>1)):
             # Defaults are activation=None and stride=1
             X=Conv1D(filters=n_filters*(2**i), kernel_size=width, 
@@ -73,6 +63,5 @@ def segnet(input_shape, n_classes, width=16, n_filters=16, dropout_rate=0.01,
     else:
         Y=Dense(n_classes, activation='softmax', name='output_layer')(X)
 
-    
-    # do it
+    # done!
     return Model(inputs=X_input, outputs=Y, name='segnet')
