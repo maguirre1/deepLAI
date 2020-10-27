@@ -13,9 +13,3 @@ Two types of admixture simulation is performed, with the number of generations `
 ### Experiment design and file locations
 
 Finally, the script `simulate.sh` is a wrapper for each of the above scripts. It iterates through dev/test set, number of generations, and applicable pairs of populations for mixing. Note that smaller population sets (e.g. `OCE`) are too small to be the major population in the "two group" setup.
-
-Output files are on galangal, at 
-```
-/home/magu/deepmix/data/reference_panel/simulated_chr${c}/vcf/
-```
-where the bash variable `c` is the chromosome of interest.
