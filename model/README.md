@@ -40,4 +40,4 @@ A series of hyperparameter combinations which are of interest is in `hparam_to_n
 
 ### Final model weights
 
-Weights for the model with optimal dev set performance are in the `weights` subdirectory, titled `chr20.full.conv3.168.*`. The `h5` file contains model weights; the `var_index.txt` file contains the indexes of variants which were included in the model; the `.png` file shows train and dev set loss/accuracy during training. The model specification for these files corresponds to line 168 of `hparam_to_nparam.txt` -- 16 filters of size 16, with 4 model blocks.
+Weights for the model with optimal dev set performance are in the `weights` subdirectory, titled `chr20.full.conv3.168.*`. The `h5` file contains model weights; the `var_index.txt` file contains the indexes of variants which were included in the model; the `.png` file shows train and dev set loss/accuracy during training; and the `.log.csv` file has these same statistics over training epochs. The model specification for these files corresponds to line 168 of `hparam_to_nparam.txt` -- 16 filters of size 16, with 4 model blocks.
