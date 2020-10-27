@@ -10,7 +10,7 @@ The generator object also (optionally) implements naive admixture simulation. Se
 
 ### Segnet
 
-Our first model is based on the [Segnet](https://github.com/imlab-uiip/keras-segnet) architecture. For more details, see the [project site](http://mi.eng.cam.ac.uk/projects/segnet/). Relevant hyperparameters for the network include
+Our model is based on the [Segnet](https://github.com/imlab-uiip/keras-segnet) architecture. For more details, see the [project site](http://mi.eng.cam.ac.uk/projects/segnet/). Relevant hyperparameters for the network include
 
  - Input shape: (required) A tuple describing the (number of variants, number of alleles) input to the model.
  - N classes: (required) An integer giving the number of label classes (ancestries) to output.
@@ -30,7 +30,7 @@ Segnet model objects may be trained using the python script `train.py`. Run `tra
  
 Output files include the list of variants used by the model (`out.var_index.txt`) and model weights (`out.h5`).
 
-The script `train.py` automatically determines whether it is being run on [Sherlock](sherlock.stanford.edu) or Galangal (`galangal.stanford.edu`). An additional wrapper script `train.sh` can be used to facilitate training for multiple script iterations (e.g. for hyperparameter optimization, coming soon).
+The script `train.py` automatically determines whether it is being run on [Sherlock](sherlock.stanford.edu) or Galangal (`galangal.stanford.edu`). An additional wrapper script `train.sh` can be used to facilitate training for multiple script iterations (e.g. for hyperparameter optimization).
 
 Additionally, a jupyter notebook (`sandbox.ipynb`) is provided as a sandbox-style development environment for the scripts in this directory. As it is intended for quick tests, no further documentation outside the notebook is provided.
 
