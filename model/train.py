@@ -2,13 +2,9 @@
 import os,sys
 import numpy as np
 import tensorflow as tf
-#from keras import optimizers, callbacks, regularizers
-#from keras.models import Model
-#from keras.utils import to_categorical
 from tensorflow.keras import optimizers, callbacks, regularizers
 from tensorflow.keras.models import Model
 from tensorflow.keras.utils import to_categorical
-#import horovod.keras as hvd 
 from segnet import segnet
 from generator import DataGenerator,DataLoader
 
@@ -17,16 +13,6 @@ _README="""
 A script to train segnet model of local ancestry.
 
 -Matthew Aguirre (magu[at]stanford[dot]edu)
-"""
-
-
-_TODO="""
-1. Add trainset and devset paths to parser
-2. Potentially number of variants and ancestry labels as well 
-    - these are currently auto-inferred
-3. Add early-stopping parameters to parser
-4. And learning rate
-5. Implement hvd multi-gpu??
 """
 
 
@@ -63,21 +49,6 @@ def load_train_set(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
     print([X.shape, Y.shape, S.shape, len(train_ix)])
     return X, Y, S, V, train_ix, ix1, ix2
 
-def load_train_set_admix(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
-    global data_root
-    # subset variants
-    V = np.load(data_root+'simulated_chr20/numpy/train_10gen.no-OCE-WAS.big.npz')['V']
-    ix1 = max(ix, min(np.where(V[:,1].astype(int)-bp1 >= 0)[0]))
-    ix2 = min(V.shape[0]+1, min(ix+count, max(np.where(V[:,1].astype(int)-bp2 <= 0)[0])))
-    # load train data
-    X = np.load(data_root+'simulated_chr20/numpy/train_10gen.no-OCE-WAS.big.G.npy', mmap_mode='r')
-    S = np.load(data_root+'simulated_chr20/numpy/train_10gen.no-OCE-WAS.big.npz')['S']
-    Y = np.load(data_root+'simulated_chr20/label/train_10gen.no-OCE-WAS.big.L.npy', mmap_mode='r')
-    train_ix=np.arange(X.shape[0])
-    np.random.shuffle(train_ix)
-    print([X.shape, Y.shape, S.shape, len(train_ix)])
-    return X, Y, S, V, train_ix, ix1, ix2
-
 
 def load_dev_set(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
     global data_root
@@ -104,7 +75,6 @@ def load_dev_set(chm=20, ix=0, count=int(1e9), bp1=0, bp2=int(1e9)):
     return X_dev, Y_dev, S_f[ids]
 
 
-
 def filter_ac(X, ac=1):
     # filters variants at >= ac in train set -- gives back indexes
     return (X.sum(axis=0) > ac).all(axis=1)
@@ -116,17 +86,10 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
           bp_start=0, bp_end=int(1e9), array_only=False, continue_train=True, ivw=False,
           random_batch=False, admix=False):
     ## Load data
-    if admix and no_generator: # precomputed admixture rather than generated on the fly
-        X, Y, S, V, train_ix, v1, v2 = load_train_set_admix(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
-    else:
-        X, Y, S, V, train_ix, v1, v2 = load_train_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
+    X, Y, S, V, train_ix, v1, v2 = load_train_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
     X_dev, Y_dev, S_dev = load_dev_set(chm=chrom, ix=var_start, count=num_var, bp1=bp_start, bp2=bp_end)
     # filter variants, get counts of variants, alleles, ancestries
     vs=filter_ac(X[:,v1:v2,:], ac=1)
-    if array_only: 
-        # subset to MEGA variants
-        x=np.loadtxt('../positions_on_mega_array.txt.gz', delimiter=' ', dtype=str)
-        vs=vs & np.in1d(V[v1:v2,1], x[x[:,0]=='chr'+str(chrom),-1])
     nv = np.sum(vs) - (np.sum(vs) % (pool_size**num_blocks))
     na = X.shape[-1]
     vs = np.array([False for _ in range(v1-1)]+
@@ -139,7 +102,7 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
         np.savetxt(out+'.var_index.txt', np.arange(len(vs))[vs], fmt='%i')
     
     # subset
-    anc=np.arange(5) if admix and no_generator else np.array([0,1,2,3,5]) # ancestry indexes -- 4 is OCE, 6 is WAS
+    anc=np.array([0,1,2,3,5]) # ancestry indexes -- 4 is OCE, 6 is WAS
     X=X[np.ix_(train_ix, vs, np.arange(na))]
     Y=Y[np.ix_(train_ix, vs, anc)]
     X_dev=X_dev[:,vs,:na]
@@ -148,9 +111,6 @@ def train(chrom=20, out='segnet_weights', no_generator=False, batch_size=4, num_
      
     ## Create model, declare optimizer
     os.system('echo "pre-model"; nvidia-smi')
-    #strategy = tf.distribute.experimental.CentralStorageStrategy()
-    #strategy = tf.distribute.MirroredStrategy()
-    #with strategy.scope():
     model = segnet(input_shape=(nv,na), n_classes=nc, 
                        width=filter_size, n_filters=num_filters, pool_size=pool_size, 
                        n_blocks=num_blocks, dropout_rate=dropout_rate, 
@@ -217,6 +177,7 @@ def plot_info(history, out):
     plt.savefig(out+'.info.png')
 
 
+   
 def get_args():
     import argparse
     parser=argparse.ArgumentParser(description=_README)
@@ -251,8 +212,6 @@ def get_args():
                          help='Flag to use batch normalization')
     parser.add_argument('--no-generator', action='store_true',
                          help='Flag to not use generator object, and load all data into memory')
-    parser.add_argument('--array-only', action='store_true',
-                         help='Flag to only use variants on the Illumina MEGA Array')
     parser.add_argument('--continue-train', action='store_true',
                          help='Flag to continue training from an existing model file')
     parser.add_argument('--ivw', action='store_true', 
@@ -260,9 +219,6 @@ def get_args():
     parser.add_argument('--admix', action='store_true', help='Flag to use admixed individuals during training')
     parser.add_argument('--random-batch', action='store_true', 
                          help='Flag to take batch samples randomly (prop. to Y_label frequency)')
-    #parser.add_argument('--n-alleles', metavar='na', type=int, nargs=1, required=False,
-    #                     default=2,
-    #                     help='Number of input alleles to consider')
     parser.add_argument('--num-var', metavar='nv', type=int, required=False, default=int(1e9),
                          help='Number of variants on chromosome to use (will be truncated to fit model specification)')
     parser.add_argument('--var-start', metavar='vs', type=int, required=False, default=0,
@@ -271,15 +227,13 @@ def get_args():
                          help='Starting base pair coordinate to subset input data')
     parser.add_argument('--bp-end', metavar='bp2', type=int, required=False, default=int(1e9),
                          help='Ending base pair coordinate to subset input data')
-    #parser.add_argument('--multi-gpu', metavar='hor', action='store_true',
-    #                     help='Flag to use horovod multi-gpu (also requires different script invocation)')
     parser.add_argument('--out', metavar='model_weights', type=str, required=True,
                          help='Output path prefix -- extensions automatically added')
     args=parser.parse_args()
     return args
 
 
-
+## define main method, and run if applicable
 def main():
     args=get_args()    
     # safety catch -- don't overwrite another model
@@ -300,54 +254,5 @@ if __name__=='__main__':
 
 
 
-
-
-## Evaluate model -- not now tho
-comment="""
-# print out confusion matrix of predicted classifications
-y_pred_dev = model.predict(X_dev, verbose=1)
-y_pred_dev_flattened = np.argmax(y_pred_test, axis=-1).flatten()
-Y_dev_groundtruths_flattened = np.argmax(Y_dev, axis=-1).flatten()
-output_confusion_matrix = confusion_matrix(Y_dev_groundtruths_flattened, y_pred_dev_flattened)
-y_pred_dev_flattened = Y_dev_groundtruths_flattened = []
-print(output_confusion_matrix)
-
-
-# In[ ]:
-
-
-# display ground truth admixtures and predicted admixtures in a small subset of dev set
-pyplot.figure(figsize=(12, 8))
-Y_dev_groundtruths = np.argmax(Y_data[1], axis=-1)
-pyplot.subplot(211)
-pyplot.title('Small subsample of dev set ground truths')
-pyplot.imshow(Y_dev_groundtruths[350:365,:].astype(int), aspect='auto', cmap='jet')
-pyplot.savefig('sample_dev_trues.png')
-
-y_pred_dev = np.argmax(y_pred_dev, axis=-1)
-pyplot.subplot(212)
-pyplot.title('Corresponding dev set predictions')
-pyplot.imshow(y_pred_dev[350:365,:].astype(int), aspect='auto', cmap='jet')
-pyplot.savefig('sample_dev_preds.png')
-
-# In[ ]:
-
-
-# store outputs 
-from numpy import save
-save('Y_dev_chm21all.npy', Y_dev)
-save('X_dev_chm21all.npy', X_dev)
-
-
-# In[ ]:
-
-
-# load model and other vital files to re-run this script
-# model.load_weights("stored_models/chm21all_saved_weights.h5")
-# Y_dev = np.load('stored_models/Y_dev_chm21all.npy', Y_dev)
-# X_dev = np.load('stored_models/X_dev_chm21all.npy', X_dev)
-
-# In[ ]:
-"""
 
 
