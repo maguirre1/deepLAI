@@ -8,7 +8,6 @@
 #SBATCH --mem-per-gpu=32G
 #SBATCH --out logs/full.hparam.%A.%a.out
 #SBATCH --array=108-135
-# #SBATCH --array=161,166,171,141,153,158,169,175,168,163,155,145
 # #SBATCH --array=93-180 # for models with 2e5 to 2e6 parameters
 # #SBATCH --array=52-101 # for models with 5e4 to 5e5 params, index 52-127
 
@@ -33,32 +32,16 @@ else
 fi
 
 
+# get parameters from array index
 id=${SLURM_ARRAY_TASK_ID:=20}
 fs="$( awk -v nr=$id '(NR==nr){print $1}' hparam_to_nparam.tsv )"
 nf="$( awk -v nr=$id '(NR==nr){print $2}' hparam_to_nparam.tsv )"
 nb="$( awk -v nr=$id '(NR==nr){print $4}' hparam_to_nparam.tsv )"
 
 
-mkdir -p weights
+
 # call the model training script
 python3 train.py --out weights/chr20.full.working.${id} --chrom=20 --num-epochs=200 \
   --filter-size=$fs --num-filter=$nf --num-blocks=$nb --batch-size=4 --continue-train
 
- 
-PARAMS="""
-  --chrom 20            Chromosome to use (must be in 1,2,...,22)
-  --batch-size 4        Minibatch size for training
-  --num-filters 8       Number of filters in first segnet layer
-  --filter-size 16      Convolutional filter size in segnet
-  --num-epochs 100      Number of epochs to train model
-  --num-blocks 5        Number of down/upward blocks (equivalent to model
-                        depth)
-  --pool-size 4         Width of maxpool operator
-  --dropout-rate 0.01   Dropout rate at each layer
-  --input-dropout-rate 0.01
-                        Dropout rate after input layer
-  --batch-norm          Flag to use batch normalization
-  --no-generator        Flag to not use generator object, and load all data
-                        into memory
-  --out model_weights   Output path prefix -- extensions automatically added
-"""
+
